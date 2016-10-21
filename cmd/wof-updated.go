@@ -29,8 +29,6 @@ func init() {
 
 func Process(repo string, files []string) error {
 
-	processing[repo] = make(chan bool)
-
 	defer func() {
 		mu.Lock()
 
@@ -61,14 +59,14 @@ func main() {
 
 	flag.Parse()
 
+	buffer := time.Second * 30
+
 	ps_messages := make(chan string)
 	up_messages := make(chan UpdateTask)
 
 	go func() {
 
 		redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
-
-		log.Println(redis_endpoint)
 
 		redis_client := redis.NewTCPClient(&redis.Options{
 			Addr: redis_endpoint,
@@ -85,6 +83,8 @@ func main() {
 			log.Fatal(err)
 		}
 
+		log.Println("ready to receive pubsub messages")
+
 		for {
 
 			i, _ := pubsub_client.Receive()
@@ -99,8 +99,8 @@ func main() {
 
 	go func() {
 
-		log.Println("handle messages")
-		
+		log.Println("ready to process pubsub messages")
+
 		for {
 
 			msg := <-ps_messages
@@ -115,7 +115,7 @@ func main() {
 		}
 	}()
 
-	log.Println("handle tasks")
+	log.Println("ready to process tasks")
 
 	for {
 
@@ -141,24 +141,29 @@ func main() {
 			continue
 		}
 
+		log.Printf("buffer %s for %v\n", repo, buffer)
+
 		go func(r string) {
 
-			log.Println("schedule", r)
-
-			timer := time.NewTimer(time.Second * 30)
+			timer := time.NewTimer(buffer)
 			<-timer.C
 
 			ch, ok := processing[r]
 
 			if ok {
 
-				log.Println(r, "is processing", "waiting")
+				log.Printf("%s is unbuffered but another instance is processing, waiting\n", r)
 				<-ch
+
+				log.Printf("%s finished processing, doing it again...\n", r)
 			}
 
 			mu.Lock()
 			f := pending[r]
 			delete(pending, r)
+
+			processing[r] = make(chan bool)
+
 			mu.Unlock()
 
 			Process(r, f)
