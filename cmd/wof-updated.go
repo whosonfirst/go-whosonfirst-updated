@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-var pending map[string]string
-var processing map[string]bool
+var pending map[string][]string
+var processing map[string]chan bool
 
 var mu *sync.Mutex
 
@@ -21,16 +21,21 @@ type UpdateTask struct {
 
 func init() {
 
-	pending = make(map[string]string)
-	processing = make(map[string]bool)
+	pending = make(map[string][]string)
+	processing = make(map[string]chan bool)
 
 	mu = new(sync.Mutex)
 }
 
-func Process(repo string, hash string) error {
+func Process(repo string, files []string) error {
 
-	go func() {
+	processing[repo] = make(chan bool)
+
+	defer func() {
 		mu.Lock()
+
+		log.Println("All done")
+		processing[repo] <- true
 		delete(processing, repo)
 		mu.Unlock()
 	}()
@@ -38,29 +43,12 @@ func Process(repo string, hash string) error {
 	// cd repo
 	// post-merge
 
-	timer := time.NewTimer(time.Second * 10)
+	log.Println("process", repo, files)
+
+	timer := time.NewTimer(time.Second * 90)
 	<-timer.C
 
-	log.Println("processed")
-
-	return nil
-}
-
-func Schedule(repo string) error {
-
-	timer := time.NewTimer(time.Minute * 1)
-	<-timer.C
-
-	mu.Lock()
-
-	hash := pending[repo]
-	delete(pending, repo)
-
-	processing[repo] = true
-
-	mu.Unlock()
-
-	go Process(repo, hash)
+	log.Println("processed", repo)
 
 	return nil
 }
@@ -78,7 +66,9 @@ func main() {
 
 	go func() {
 
-		redis_endpoint := fmt.Sprintf("%s:%d", redis_host, redis_port)
+		redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
+
+		log.Println(redis_endpoint)
 
 		redis_client := redis.NewTCPClient(&redis.Options{
 			Addr: redis_endpoint,
@@ -89,64 +79,93 @@ func main() {
 		pubsub_client := redis_client.PubSub()
 		defer pubsub_client.Close()
 
-		pubsub_client.Subscribe(*redis_channel)
+		err := pubsub_client.Subscribe(*redis_channel)
+
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		for {
 
 			i, _ := pubsub_client.Receive()
 
 			if msg, _ := i.(*redis.Message); msg != nil {
+				log.Println("message", msg)
 				ps_messages <- msg.Payload
 			}
 		}
+
 	}()
 
 	go func() {
 
+		log.Println("handle messages")
+		
 		for {
 
 			msg := <-ps_messages
-			log.Println(msg)
+			log.Println("got message", msg)
 
 			task := UpdateTask{
 				Repo:       "debug",
-				CommitHash: "xxx",
+				CommitHash: msg,
 			}
 
 			up_messages <- task
 		}
 	}()
 
-	go func() {
-
-		for {
-
-			task := <-up_messages
-
-			repo := task.Repo
-
-			_, waiting := pending[repo]
-
-			if waiting {
-				continue
-			}
-
-			pending[repo] = task.CommitHash
-		}
-
-	}()
+	log.Println("handle tasks")
 
 	for {
 
-		for repo, _ := range pending {
+		task := <-up_messages
+		log.Println("got task", task)
 
-			_, working := processing[repo]
+		repo := task.Repo
 
-			if working {
-				continue
+		mu.Lock()
+
+		files, ok := pending[repo]
+
+		if !ok {
+			files = make([]string, 0)
+		}
+
+		files = append(files, task.CommitHash)
+		pending[repo] = files
+
+		mu.Unlock()
+
+		if ok {
+			continue
+		}
+
+		go func(r string) {
+
+			log.Println("schedule", r)
+
+			timer := time.NewTimer(time.Second * 30)
+			<-timer.C
+
+			ch, ok := processing[r]
+
+			if ok {
+
+				log.Println(r, "is processing", "waiting")
+				<-ch
 			}
 
-			go Schedule(repo)
-		}
+			mu.Lock()
+			f := pending[r]
+			delete(pending, r)
+			mu.Unlock()
+
+			Process(r, f)
+
+		}(repo)
+
 	}
+
+	log.Println("stop")
 }
