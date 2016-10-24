@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/google/go-github/github"
+	_ "github.com/whosonfirst/go-whosonfirst-s3"
+	_ "github.com/whosonfirst/go-whosonfirst-tile38/index"
 	"gopkg.in/redis.v1"
 	"io/ioutil"
 	"log"
@@ -54,6 +56,8 @@ func Process(repo string, files []string) error {
 
 	for _, relpath := range files {
 
+		// TO DO: add abs path ?
+
 		path := filepath.Join(repo, relpath)
 		_, err = tmpfile.Write([]byte(path + "\n"))
 
@@ -74,8 +78,46 @@ func Process(repo string, files []string) error {
 		os.Remove(path)
 	}()
 
-	// cd repo
-	// post-merge
+	// cd repo (maybe?)
+
+	// update metafiles - this still needs to block for now...
+
+	wg := new(sync.WaitGroup)
+
+	// sync to ES
+
+	// sync to S3
+
+	/*
+		wg.Add(1)
+
+		go func() {
+
+			defer wg.Done()
+
+			s := s3.WOFSync(auth, *bucket, *prefix, *procs, *debug, logger)
+			s.SyncFileList(tmpfile, root)
+		}()
+	*/
+
+	// sync to Tile38
+
+	/*
+		wg.Add(1)
+
+		go func() {
+
+		   defer wg.Done()
+
+		   client, err := tile38.NewTile38Client(*tile38_host, *tile38_port)
+		   client.IndexFileList(tmpfile, *collection)
+
+		}()
+	*/
+
+	// generate bundle(s)
+
+	wg.Wait()
 
 	log.Println("process", repo, files)
 
