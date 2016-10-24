@@ -93,7 +93,7 @@ func main() {
 			i, _ := pubsub_client.Receive()
 
 			if msg, _ := i.(*redis.Message); msg != nil {
-				log.Println("message", msg)
+				// log.Println("message", msg)
 				ps_messages <- msg.Payload
 			}
 		}
@@ -121,7 +121,7 @@ func main() {
 			repo := event.Repo
 			repo_name := *repo.Name
 
-			hash := *event.HeadCommit.SHA
+			hash := *event.HeadCommit.ID
 
 			commits := make([]string, 0)
 
