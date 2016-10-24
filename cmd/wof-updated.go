@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"github.com/google/go-github/github"
 	"gopkg.in/redis.v1"
+	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -39,6 +42,36 @@ func Process(repo string, files []string) error {
 		processing[repo] <- true
 		delete(processing, repo)
 		mu.Unlock()
+	}()
+
+	// first create a file of all the things to process
+
+	tmpfile, err := ioutil.TempFile("", "updated")
+
+	if err != nil {
+		return err
+	}
+
+	for _, relpath := range files {
+
+		path := filepath.Join(repo, relpath)
+		_, err = tmpfile.Write([]byte(path + "\n"))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	err = tmpfile.Close()
+
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		path := tmpfile.Name()
+		log.Println("remove", path)
+		os.Remove(path)
 	}()
 
 	// cd repo
@@ -107,7 +140,7 @@ func main() {
 		for {
 
 			msg := <-ps_messages
-			log.Println("got message", msg)
+			// log.Println("got message", msg)
 
 			var event github.PushEvent
 
