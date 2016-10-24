@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/google/go-github/github"
 	"gopkg.in/redis.v1"
 	"log"
 	"sync"
@@ -17,6 +19,7 @@ var mu *sync.Mutex
 type UpdateTask struct {
 	Repo       string
 	CommitHash string
+	Commits    []string
 }
 
 func init() {
@@ -106,9 +109,41 @@ func main() {
 			msg := <-ps_messages
 			log.Println("got message", msg)
 
+			var event github.PushEvent
+
+			err := json.Unmarshal([]byte(msg), &event)
+
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			repo := event.Repo
+			repo_name := *repo.Name
+
+			hash := *event.HeadCommit.SHA
+
+			commits := make([]string, 0)
+
+			for _, c := range event.Commits {
+
+				for _, path := range c.Added {
+					commits = append(commits, path)
+				}
+
+				for _, path := range c.Modified {
+					commits = append(commits, path)
+				}
+
+				for _, path := range c.Removed {
+					commits = append(commits, path)
+				}
+			}
+
 			task := UpdateTask{
-				Repo:       "debug",
-				CommitHash: msg,
+				Repo:       repo_name,
+				CommitHash: hash,
+				Commits:    commits,
 			}
 
 			up_messages <- task
@@ -132,7 +167,10 @@ func main() {
 			files = make([]string, 0)
 		}
 
-		files = append(files, task.CommitHash)
+		for _, path := range task.Commits {
+			files = append(files, path)
+		}
+
 		pending[repo] = files
 
 		mu.Unlock()
