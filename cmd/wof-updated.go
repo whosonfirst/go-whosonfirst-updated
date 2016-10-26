@@ -1,17 +1,19 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/csv"
 	"flag"
 	"fmt"
-	"github.com/google/go-github/github"
 	_ "github.com/whosonfirst/go-whosonfirst-s3"
 	_ "github.com/whosonfirst/go-whosonfirst-tile38/index"
 	"gopkg.in/redis.v1"
+	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,9 +24,8 @@ var processing map[string]chan bool
 var mu *sync.Mutex
 
 type UpdateTask struct {
-	Repo       string
-	CommitHash string
-	Commits    []string
+	Repo    string
+	Commits []string
 }
 
 func init() {
@@ -33,6 +34,16 @@ func init() {
 	processing = make(map[string]chan bool)
 
 	mu = new(sync.Mutex)
+}
+
+func Pause(seconds int) {
+
+	d := time.Duration(rand.Int31n(int32(seconds * 1000)))
+	log.Println("pause for %d ms", d)
+
+	timer := time.NewTimer(time.Millisecond * d)
+	<-timer.C
+
 }
 
 func Process(repo string, files []string) error {
@@ -45,6 +56,9 @@ func Process(repo string, files []string) error {
 		delete(processing, repo)
 		mu.Unlock()
 	}()
+
+	log.Println("process", repo, files)
+	t1 := time.Now()
 
 	// first create a file of all the things to process
 
@@ -64,6 +78,8 @@ func Process(repo string, files []string) error {
 		if err != nil {
 			return err
 		}
+
+		log.Println("schedule", path)
 	}
 
 	err = tmpfile.Close()
@@ -82,49 +98,67 @@ func Process(repo string, files []string) error {
 
 	// update metafiles - this still needs to block for now...
 
+	log.Println("update metafiles")
+
+	Pause(5)
+
 	wg := new(sync.WaitGroup)
 
 	// sync to ES
 
+	wg.Add(1)
+
+	go func() {
+
+		defer wg.Done()
+
+		log.Println("sync ES")
+
+		Pause(5)
+	}()
+
 	// sync to S3
 
-	/*
-		wg.Add(1)
+	wg.Add(1)
 
-		go func() {
+	go func() {
 
-			defer wg.Done()
+		defer wg.Done()
 
-			s := s3.WOFSync(auth, *bucket, *prefix, *procs, *debug, logger)
-			s.SyncFileList(tmpfile, root)
-		}()
-	*/
+		log.Println("sync S3")
+
+		Pause(5)
+
+		// s := s3.WOFSync(auth, *bucket, *prefix, *procs, *debug, logger)
+		// s.SyncFileList(tmpfile, root)
+	}()
 
 	// sync to Tile38
 
-	/*
-		wg.Add(1)
+	wg.Add(1)
 
-		go func() {
+	go func() {
 
-		   defer wg.Done()
+		defer wg.Done()
 
-		   client, err := tile38.NewTile38Client(*tile38_host, *tile38_port)
-		   client.IndexFileList(tmpfile, *collection)
+		log.Println("sync T38")
 
-		}()
-	*/
+		Pause(5)
 
-	// generate bundle(s)
+		// client, err := tile38.NewTile38Client(*tile38_host, *tile38_port)
+		// client.IndexFileList(tmpfile, *collection)
+
+	}()
+
+	// generate bundle(s) or not - it's more likely these would happen through a
+	// cron job (20161025/thisisaaronland)
 
 	wg.Wait()
 
-	log.Println("process", repo, files)
-
-	timer := time.NewTimer(time.Second * 90)
-	<-timer.C
+	t2 := time.Since(t1)
 
 	log.Println("processed", repo)
+	log.Println(t2)
 
 	return nil
 }
@@ -181,47 +215,49 @@ func main() {
 
 		for {
 
+			// we are assuming this:
+			// https://github.com/whosonfirst/go-webhookd/blob/master/transformations/github.commits.go
+
 			msg := <-ps_messages
-			// log.Println("got message", msg)
 
-			var event github.PushEvent
+			rdr := csv.NewReader(strings.NewReader(msg))
 
-			err := json.Unmarshal([]byte(msg), &event)
+			tasks := make(map[string][]string)
 
-			if err != nil {
-				log.Println(err)
-				return
-			}
+			for {
+				row, err := rdr.Read()
 
-			repo := event.Repo
-			repo_name := *repo.Name
-
-			hash := *event.HeadCommit.ID
-
-			commits := make([]string, 0)
-
-			for _, c := range event.Commits {
-
-				for _, path := range c.Added {
-					commits = append(commits, path)
+				if err == io.EOF {
+					break
 				}
 
-				for _, path := range c.Modified {
-					commits = append(commits, path)
+				if err != nil {
+					log.Println(err)
+					break
 				}
 
-				for _, path := range c.Removed {
-					commits = append(commits, path)
+				repo := row[1]
+				path := row[2]
+
+				commits, ok := tasks[repo]
+
+				if !ok {
+					commits = make([]string, 0)
 				}
+
+				commits = append(commits, path)
+				tasks[repo] = commits
 			}
 
-			task := UpdateTask{
-				Repo:       repo_name,
-				CommitHash: hash,
-				Commits:    commits,
-			}
+			for repo, commits := range tasks {
 
-			up_messages <- task
+				t := UpdateTask{
+					Repo:    repo,
+					Commits: commits,
+				}
+
+				up_messages <- t
+			}
 		}
 	}()
 
