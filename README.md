@@ -1,5 +1,7 @@
 # go-whosonfirst-updated
 
+![](images/wof-updated-arch.png)
+
 Too soon. Move along.
 
 ## Example
