@@ -1,7 +1,5 @@
 # go-whosonfirst-updated
 
-![](images/wof-updated-arch.png)
-
 Too soon. Move along.
 
 ## Example
@@ -30,3 +28,11 @@ _Complete with formatting errors..._
 2016/10/26 01:20:00 remove /tmp/updated550446686
 2016/10/26 01:20:00 All done
 ```
+
+## Here is a pretty picture
+
+![](images/wof-updated-arch.png)
+
+## See also
+
+* https://github.com/whosonfirst/go-webhookd
