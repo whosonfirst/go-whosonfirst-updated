@@ -88,3 +88,19 @@ func (q *Queue) IsProcessing(repo string) bool {
 
 	return ok
 }
+
+func (q *Queue) Pending() []string {
+
+	pending := make([]string, 0)
+
+	for repo, _ := range q.pending {
+
+		if q.IsProcessing(repo) {
+			continue
+		}
+
+		pending = append(pending, repo)
+	}
+
+	return pending
+}

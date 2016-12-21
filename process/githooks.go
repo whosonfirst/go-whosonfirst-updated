@@ -6,12 +6,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 )
 
 type GitHooksProcessor struct {
 	Processor
 	queue     *queue.Queue
 	data_root string
+	flushing  bool
+	mu        *sync.Mutex
 }
 
 func NewGitHooksProcessor(data_root string) (*GitHooksProcessor, error) {
@@ -34,17 +38,63 @@ func NewGitHooksProcessor(data_root string) (*GitHooksProcessor, error) {
 		return nil, err
 	}
 
-	p := GitHooksProcessor{
+	mu := new(sync.Mutex)
+
+	gh := GitHooksProcessor{
 		queue:     q,
 		data_root: data_root,
+		flushing:  false,
+		mu:        mu,
 	}
 
-	return &p, nil
+	gh.Monitor()
+
+	return &gh, nil
+}
+
+func (gh *GitHooksProcessor) Monitor() {
+
+	buffer := time.Second * 30
+
+	for {
+
+		timer := time.NewTimer(buffer)
+		<-timer.C
+
+		gh.Flush()
+	}
+
+}
+
+func (gh *GitHooksProcessor) Flush() {
+
+	gh.mu.Lock()
+
+	if gh.flushing {
+		gh.mu.Unlock()
+		return
+	}
+
+	gh.flushing = true
+	gh.mu.Unlock()
+
+	for _, repo := range gh.queue.Pending() {
+		go gh.ProcessRepo(repo)
+	}
+
+	gh.mu.Lock()
+
+	gh.flushing = false
+	gh.mu.Unlock()
 }
 
 func (gh *GitHooksProcessor) Process(task updated.UpdateTask) error {
 
 	repo := task.Repo
+	return gh.ProcessRepo(repo)
+}
+
+func (gh *GitHooksProcessor) ProcessRepo(repo string) error {
 
 	if gh.queue.IsProcessing(repo) {
 		return gh.queue.Schedule(repo)
