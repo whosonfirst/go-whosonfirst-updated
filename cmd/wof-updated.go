@@ -17,8 +17,27 @@ func main() {
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
+	var githooks = flag.Bool("githooks", false, "...")
+	var githooks_root = flag.String("githooks-data-root", "", "...")
 
 	flag.Parse()
+
+	processors := make([]process.Processor, 0)
+
+	if *githooks {
+
+		gh, err := process.NewGitHooksProcessor(*githooks_root)
+
+		if err != nil {
+			log.Fatal("Failed to instantiate Git hooks processor", err)
+		}
+
+		processors = append(processors, gh)
+	}
+
+	if len(processors) == 0 {
+		log.Fatal("You forgot to specify any processors, silly")
+	}
 
 	ps_messages := make(chan string)
 	up_messages := make(chan updated.UpdateTask)
@@ -110,18 +129,15 @@ func main() {
 
 	log.Println("ready to process tasks")
 
-	gh, err := process.NewGitHooksProcessor()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	for {
 
 		task := <-up_messages
 		log.Println("got task", task)
 
-		go gh.Process(task)
+		for _, p := range processors {
+
+			go p.Process(task)
+		}
 	}
 
 	log.Println("stop")
