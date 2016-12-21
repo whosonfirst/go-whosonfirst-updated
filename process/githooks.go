@@ -1,10 +1,12 @@
 package process
 
 import (
+	"fmt"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -125,6 +127,21 @@ func (gh *GitHooksProcessor) _process(repo string) error {
 
 	abs_path := filepath.Join(gh.data_root, repo)
 	log.Println("process", abs_path)
+
+	dot_git := filepath.Join(abs_path, ".git")
+
+	git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
+	work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
+
+	git_args := []string{git_dir, work_tree, "pull", "origin", "master"}
+
+	cmd := exec.Command("git", git_args...)
+
+	_, err := cmd.Output()
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
