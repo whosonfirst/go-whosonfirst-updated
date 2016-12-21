@@ -49,7 +49,7 @@ func NewGitHooksProcessor(data_root string) (*GitHooksProcessor, error) {
 		mu:        mu,
 	}
 
-	gh.Monitor()
+	go gh.Monitor()
 
 	return &gh, nil
 }
@@ -125,8 +125,23 @@ func (gh *GitHooksProcessor) ProcessRepo(repo string) error {
 
 func (gh *GitHooksProcessor) _process(repo string) error {
 
+	t1 := time.Now()
+
+	defer func() {
+
+		t2 := time.Since(t1)
+		log.Printf("time to process %s: %v\n", repo, t2)
+	}()
+
 	abs_path := filepath.Join(gh.data_root, repo)
 	log.Println("process", abs_path)
+
+	_, err := os.Stat(abs_path)
+
+	if os.IsNotExist(err) {
+		log.Println("Can't find repo", abs_path)
+		return err
+	}
 
 	dot_git := filepath.Join(abs_path, ".git")
 
@@ -137,9 +152,10 @@ func (gh *GitHooksProcessor) _process(repo string) error {
 
 	cmd := exec.Command("git", git_args...)
 
-	_, err := cmd.Output()
+	_, err = cmd.Output()
 
 	if err != nil {
+		log.Println("failed to pull from master", err)
 		return err
 	}
 

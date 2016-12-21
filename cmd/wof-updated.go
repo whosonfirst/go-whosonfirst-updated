@@ -22,6 +22,8 @@ func main() {
 
 	flag.Parse()
 
+	log.Println("START")
+
 	processors := make([]process.Processor, 0)
 
 	if *githooks {
@@ -41,6 +43,8 @@ func main() {
 
 	ps_messages := make(chan string)
 	up_messages := make(chan updated.UpdateTask)
+
+	log.Println("WOO")
 
 	go func() {
 
@@ -100,6 +104,11 @@ func main() {
 				if err != nil {
 					log.Println(err)
 					break
+				}
+
+				if len(row) != 3 {
+					log.Println("No idea how to process row", row)
+					continue
 				}
 
 				repo := row[1]
