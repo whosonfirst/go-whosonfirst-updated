@@ -6,6 +6,10 @@ prep:
 
 self:   prep
 	if test ! -d src; then mkdir src; fi
+	if test ! -d src/github.com/whosonfirst/go-whosonfirst-updated/updated; then mkdir -p src/github.com/whosonfirst/go-whosonfirst-updated/; fi
+	cp  updated.go src/github.com/whosonfirst/go-whosonfirst-updated/
+	cp -r process src/github.com/whosonfirst/go-whosonfirst-updated/
+	cp -r queue src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r vendor/src/* src/
 
 rmdeps:
@@ -29,3 +33,6 @@ bin: 	self
 
 fmt:
 	go fmt cmd/*.go
+	go fmt process/*.go
+	go fmt queue/*.go
+	go fmt updated.go
