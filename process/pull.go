@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-type GitProcessor struct {
-	Processor
+type PullProcess struct {
+	Process
 	queue     *queue.Queue
 	data_root string
 	flushing  bool
@@ -22,7 +22,7 @@ type GitProcessor struct {
 	logger    *log.WOFLogger
 }
 
-func NewGitProcessor(data_root string, logger *log.WOFLogger) (*GitProcessor, error) {
+func NewPullProcess(data_root string, logger *log.WOFLogger) (*PullProcess, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -44,7 +44,7 @@ func NewGitProcessor(data_root string, logger *log.WOFLogger) (*GitProcessor, er
 
 	mu := new(sync.Mutex)
 
-	pr := GitProcessor{
+	pr := PullProcess{
 		queue:     q,
 		data_root: data_root,
 		flushing:  false,
@@ -57,7 +57,7 @@ func NewGitProcessor(data_root string, logger *log.WOFLogger) (*GitProcessor, er
 	return &pr, nil
 }
 
-func (pr *GitProcessor) Monitor() {
+func (pr *PullProcess) Monitor() {
 
 	buffer := time.Second * 30
 
@@ -71,7 +71,7 @@ func (pr *GitProcessor) Monitor() {
 
 }
 
-func (pr *GitProcessor) Flush() {
+func (pr *PullProcess) Flush() {
 
 	pr.mu.Lock()
 
@@ -93,13 +93,17 @@ func (pr *GitProcessor) Flush() {
 	pr.mu.Unlock()
 }
 
-func (pr *GitProcessor) Process(task updated.UpdateTask) error {
+func (pr *PullProcess) Name() string {
+	return "pull"
+}
+
+func (pr *PullProcess) ProcessTask(task updated.UpdateTask) error {
 
 	repo := task.Repo
 	return pr.ProcessRepo(repo)
 }
 
-func (pr *GitProcessor) ProcessRepo(repo string) error {
+func (pr *PullProcess) ProcessRepo(repo string) error {
 
 	if pr.queue.IsProcessing(repo) {
 		return pr.queue.Schedule(repo)
@@ -126,7 +130,7 @@ func (pr *GitProcessor) ProcessRepo(repo string) error {
 	return nil
 }
 
-func (pr *GitProcessor) _process(repo string) error {
+func (pr *PullProcess) _process(repo string) error {
 
 	t1 := time.Now()
 

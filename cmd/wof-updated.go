@@ -19,7 +19,7 @@ func main() {
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
-	var git = flag.Bool("git", false, "...")
+	var pull = flag.Bool("pull", false, "...")
 	var s3 = flag.Bool("s3", false, "...")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
@@ -52,11 +52,19 @@ func main() {
 	logger := log.NewWOFLogger("updated")
 	logger.AddLogger(writer, *loglevel)
 
-	processors := make([]process.Processor, 0)
+	processors := make([]process.Process, 0)
 
-	if *git {
+	/*
 
-		pr, err := process.NewGitProcessor(*data_root, logger)
+		the order in which processes get added to the `processors` is important because
+		some need to be run before others and block and check return values while others
+		are assumed to be able to be run asynchronously (20161222/thisisaaronland)
+
+	*/
+
+	if *pull {
+
+		pr, err := process.NewPullProcess(*data_root, logger)
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate Git hooks processor", err)
@@ -67,7 +75,7 @@ func main() {
 
 	if *s3 {
 
-		pr, err := process.NewS3Processor(*data_root, *s3_bucket, *s3_prefix, logger)
+		pr, err := process.NewS3Process(*data_root, *s3_bucket, *s3_prefix, logger)
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate S3 hooks processor", err)
@@ -182,7 +190,20 @@ func main() {
 
 		for _, p := range processors {
 
-			go p.Process(task)
+			if p.Name() == "pull" {
+
+				err := p.ProcessTask(task)
+
+				if err != nil {
+
+					logger.Error("Failed to complete %s process for task (%s) because: %s", p.Name(), task, err)
+					break
+				}
+
+				continue
+			}
+
+			go p.ProcessTask(task)
 		}
 	}
 

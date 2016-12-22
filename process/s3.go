@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-type S3Processor struct {
-	Processor
+type S3Process struct {
+	Process
 	queue     *queue.Queue
 	data_root string
 	flushing  bool
@@ -26,7 +26,7 @@ type S3Processor struct {
 	logger    *log.WOFLogger
 }
 
-func NewS3Processor(data_root string, s3_bucket string, s3_prefix string, logger *log.WOFLogger) (*S3Processor, error) {
+func NewS3Process(data_root string, s3_bucket string, s3_prefix string, logger *log.WOFLogger) (*S3Process, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -50,7 +50,7 @@ func NewS3Processor(data_root string, s3_bucket string, s3_prefix string, logger
 
 	mu := new(sync.Mutex)
 
-	pr := S3Processor{
+	pr := S3Process{
 		queue:     q,
 		data_root: data_root,
 		flushing:  false,
@@ -66,7 +66,11 @@ func NewS3Processor(data_root string, s3_bucket string, s3_prefix string, logger
 	return &pr, nil
 }
 
-func (pr *S3Processor) Process(task updated.UpdateTask) error {
+func (pr *S3Process) Name() string {
+	return "s3"
+}
+
+func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 
 	repo := task.Repo
 
@@ -88,7 +92,7 @@ func (pr *S3Processor) Process(task updated.UpdateTask) error {
 	return pr.ProcessRepo(repo)
 }
 
-func (pr *S3Processor) ProcessRepo(repo string) error {
+func (pr *S3Process) ProcessRepo(repo string) error {
 
 	if pr.queue.IsProcessing(repo) {
 		return pr.queue.Schedule(repo)
@@ -115,7 +119,7 @@ func (pr *S3Processor) ProcessRepo(repo string) error {
 	return nil
 }
 
-func (pr *S3Processor) _process(repo string) error {
+func (pr *S3Process) _process(repo string) error {
 
 	t1 := time.Now()
 

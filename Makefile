@@ -4,7 +4,7 @@ GOPATH := $(CWD)
 prep:
 	if test -d pkg; then rm -rf pkg; fi
 
-self:   prep
+self:   prep rmdeps
 	if test ! -d src; then mkdir src; fi
 	if test ! -d src/github.com/whosonfirst/go-whosonfirst-updated/updated; then mkdir -p src/github.com/whosonfirst/go-whosonfirst-updated/; fi
 	cp  updated.go src/github.com/whosonfirst/go-whosonfirst-updated/
