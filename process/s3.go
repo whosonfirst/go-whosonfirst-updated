@@ -6,7 +6,7 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-s3"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
-	"io/ioutil"
+	"github.com/whosonfirst/go-whosonfirst-updated/utils"
 	"os"
 	_ "os/exec"
 	"path/filepath"
@@ -147,7 +147,7 @@ func (pr *S3Process) _process(repo string) error {
 
 	defer func() {
 		t2 := time.Since(t1)
-		pr.logger.Info("time to process %s: %v\n", repo, t2)
+		pr.logger.Info("time to process (%s) %s: %v", pr.Name(), repo, t2)
 	}()
 
 	root := filepath.Join(pr.data_root, repo)
@@ -159,16 +159,7 @@ func (pr *S3Process) _process(repo string) error {
 		return err
 	}
 
-	tmpfile, err := ioutil.TempFile("", "updated")
-
-	if err != nil {
-		pr.logger.Error("Failed to create tmp file", err)
-		return err
-	}
-
-	defer func() {
-		os.Remove(tmpfile.Name())
-	}()
+	/* sudo wrap all of this in a single function somewhere... */
 
 	pr.mu.Lock()
 	files := pr.files[repo]
@@ -176,23 +167,32 @@ func (pr *S3Process) _process(repo string) error {
 	delete(pr.files, repo)
 	pr.mu.Unlock()
 
-	seen := make(map[string]bool)
+	tmpfile, err := utils.FilesToFileList(files, root)
 
-	for _, path := range files {
+	if err != nil {
 
-		abs_path := filepath.Join(root, path)
+		pr.mu.Lock()
 
-		_, ok := seen[abs_path]
+		_, ok := pr.files[repo]
 
 		if ok {
-			continue
+
+			for _, path := range files {
+				pr.files[repo] = append(pr.files[repo], path)
+			}
+
+		} else {
+			pr.files[repo] = files
 		}
 
-		tmpfile.Write([]byte(abs_path + "\n"))
-		seen[abs_path] = true
+		pr.mu.Unlock()
+
+		return err
 	}
 
-	pr.logger.Info(tmpfile.Name())
+	/* end of sudo wrap all of this in a single function somewhere... */
+
+	defer os.Remove(tmpfile.Name())
 
 	debug := false
 	procs := 10

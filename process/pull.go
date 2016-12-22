@@ -123,7 +123,7 @@ func (pr *PullProcess) _process(repo string) error {
 	defer func() {
 
 		t2 := time.Since(t1)
-		pr.logger.Info("time to process %s: %v\n", repo, t2)
+		pr.logger.Info("time to process (%s) %s: %v", pr.Name(), repo, t2)
 	}()
 
 	abs_path := filepath.Join(pr.data_root, repo)

@@ -1,5 +1,34 @@
 package main
 
+/*
+
+This should still be considered "wet paint" as of 20161222 but something like this:
+
+./bin/wof-updated -pull -s3 -es -es-host es.example.com -es-index spelunker -stdout -loglevel debug -data-root /usr/local/data
+updated 18:48:52.829236 [info] ready to process tasks
+updated 18:48:52.830488 [info] ready to receive pubsub messages
+updated 18:48:52.831441 [info] ready to process pubsub messages
+
+./bin/publish updated x,whosonfirst-data-venue-us-ca,data/110/878/641/1/1108786411.geojson
+updated 18:48:58.333577 [info] got task: {whosonfirst-data-venue-us-ca [data/110/878/641/1/1108786411.geojson]}
+updated 18:48:58.333607 [info] invoking pull
+updated 18:49:10.888423 [debug] Already up-to-date.
+updated 18:49:10.888499 [info] time to process (pull) whosonfirst-data-venue-us-ca: 12.554848051s
+updated 18:49:10.888523 [info] invoking s3
+updated 18:49:10.888545 [info] invoking elasticsearch
+updated 18:49:10.888792 [debug] /usr/local/bin/wof-es-index-filelist --host es.example.com --port 9200 --index spelunker /tmp/updated099706883
+updated 18:49:10.899789 [debug] Schedule /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson for sync
+updated 18:49:10.900059 [debug] Schedule /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson for processing
+updated 18:49:10.900335 [debug] Looking for changes to /data/110/878/641/1/1108786411.geojson (prefix: )
+updated 18:49:10.900494 [debug] HEAD s3://whosonfirst.mapzen.com//data/110/878/641/1/1108786411.geojson
+updated 18:49:11.151795 [debug] Local hash is 48fa97d0b9924b0d03bd88de182a6623 remote hash is 48fa97d0b9924b0d03bd88de182a6623
+updated 18:49:11.152005 [debug] /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson has not changed, skipping
+updated 18:49:11.152146 [debug] Completed sync for /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson
+updated 18:49:11.152397 [info] time to process (s3) whosonfirst-data-venue-us-ca: 262.075848ms
+updated 18:49:12.175761 [info] time to process (elasticsearch) whosonfirst-data-venue-us-ca: 1.287165453s
+
+*/
+
 import (
 	"encoding/csv"
 	"flag"
@@ -22,6 +51,7 @@ func main() {
 	var es_host = flag.String("es-host", "localhost", "")
 	var es_port = flag.String("es-port", "9200", "")
 	var es_index = flag.String("es-index", "whosonfirst", "")
+	var es_index_tool = flag.String("es-index-tool", "/usr/local/bin/wof-es-index-filelist", "")
 	var logfile = flag.String("logfile", "", "Write logging information to this file")
 	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
 	var pull = flag.Bool("pull", false, "...")
@@ -91,7 +121,7 @@ func main() {
 
 	if *es {
 
-		pr, err := process.NewElasticsearchProcess(*data_root, *es_host, *es_port, *es_index, logger)
+		pr, err := process.NewElasticsearchProcess(*data_root, *es_index_tool, *es_host, *es_port, *es_index, logger)
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
@@ -210,6 +240,7 @@ func main() {
 				timer := time.NewTimer(buffer)
 				<-timer.C
 
+				logger.Info("invoking flush for %s", pr.Name())
 				pr.Flush()
 			}
 		}(pr)
@@ -220,22 +251,26 @@ func main() {
 		task := <-up_messages
 		logger.Info("got task: %s", task)
 
-		for _, p := range processors {
+		for _, pr := range processors {
 
-			if p.Name() == "pull" {
+			name := pr.Name()
 
-				err := p.ProcessTask(task)
+			logger.Info("invoking %s", name)
+
+			if name == "pull" {
+
+				err := pr.ProcessTask(task)
 
 				if err != nil {
 
-					logger.Error("Failed to complete %s process for task (%s) because: %s", p.Name(), task, err)
+					logger.Error("Failed to complete %s process for task (%s) because: %s", name, task, err)
 					break
 				}
 
 				continue
 			}
 
-			go p.ProcessTask(task)
+			go pr.ProcessTask(task)
 		}
 	}
 

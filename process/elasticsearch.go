@@ -8,24 +8,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 type ElasticsearchProcess struct {
 	Process
-	queue     *queue.Queue
-	data_root string
-	flushing  bool
-	mu        *sync.Mutex
-	files     map[string][]string
-	es_host   string
-	es_port   string
-	es_index  string
-	logger    *log.WOFLogger
+	queue      *queue.Queue
+	data_root  string
+	flushing   bool
+	mu         *sync.Mutex
+	files      map[string][]string
+	es_host    string
+	es_port    string
+	es_index   string
+	index_tool string
+	logger     *log.WOFLogger
 }
 
-func NewElasticsearchProcess(data_root string, es_host string, es_port string, es_index string, logger *log.WOFLogger) (*ElasticsearchProcess, error) {
+func NewElasticsearchProcess(data_root string, index_tool string, es_host string, es_port string, es_index string, logger *log.WOFLogger) (*ElasticsearchProcess, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -34,6 +36,18 @@ func NewElasticsearchProcess(data_root string, es_host string, es_port string, e
 	}
 
 	_, err = os.Stat(data_root)
+
+	if os.IsNotExist(err) {
+		return nil, err
+	}
+
+	index_tool, err = filepath.Abs(index_tool)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = os.Stat(index_tool)
 
 	if os.IsNotExist(err) {
 		return nil, err
@@ -50,15 +64,16 @@ func NewElasticsearchProcess(data_root string, es_host string, es_port string, e
 	mu := new(sync.Mutex)
 
 	pr := ElasticsearchProcess{
-		queue:     q,
-		data_root: data_root,
-		flushing:  false,
-		mu:        mu,
-		files:     files,
-		es_host:   es_host,
-		es_port:   es_port,
-		es_index:  es_index,
-		logger:    logger,
+		queue:      q,
+		data_root:  data_root,
+		flushing:   false,
+		mu:         mu,
+		files:      files,
+		index_tool: index_tool,
+		es_host:    es_host,
+		es_port:    es_port,
+		es_index:   es_index,
+		logger:     logger,
 	}
 
 	return &pr, nil
@@ -147,7 +162,7 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	defer func() {
 		t2 := time.Since(t1)
-		pr.logger.Info("time to process %s: %v\n", repo, t2)
+		pr.logger.Info("time to process (%s) %s: %v", pr.Name(), repo, t2)
 	}()
 
 	root := filepath.Join(pr.data_root, repo)
@@ -194,7 +209,7 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	defer os.Remove(tmpfile.Name())
 
-	index_es := "FIX ME"
+	// please write me in Go... (20161222/thisisaaronland)
 
 	index_args := []string{
 		"--host", pr.es_host,
@@ -203,15 +218,16 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 		tmpfile.Name(),
 	}
 
-	cmd := exec.Command(index_es, index_args...)
+	cmd := exec.Command(pr.index_tool, index_args...)
 
-	out, err := cmd.Output()
+	pr.logger.Debug("%s %s", pr.index_tool, strings.Join(index_args, " "))
+
+	_, err = cmd.Output()
 
 	if err != nil {
 		pr.logger.Error("failed to index Elasticsearch %s", err)
 		return err
 	}
 
-	pr.logger.Debug("%s\n", out)
 	return nil
 }
