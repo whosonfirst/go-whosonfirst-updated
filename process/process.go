@@ -7,4 +7,5 @@ import (
 type Process interface {
 	ProcessTask(task updated.UpdateTask) error
 	Name() string
+	Flush() error
 }

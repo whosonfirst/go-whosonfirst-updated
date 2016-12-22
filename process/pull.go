@@ -52,32 +52,20 @@ func NewPullProcess(data_root string, logger *log.WOFLogger) (*PullProcess, erro
 		logger:    logger,
 	}
 
-	go pr.Monitor()
-
 	return &pr, nil
 }
 
-func (pr *PullProcess) Monitor() {
-
-	buffer := time.Second * 30
-
-	for {
-
-		timer := time.NewTimer(buffer)
-		<-timer.C
-
-		pr.Flush()
-	}
-
+func (pr *PullProcess) Name() string {
+	return "pull"
 }
 
-func (pr *PullProcess) Flush() {
+func (pr *PullProcess) Flush() error {
 
 	pr.mu.Lock()
 
 	if pr.flushing {
 		pr.mu.Unlock()
-		return
+		return nil
 	}
 
 	pr.flushing = true
@@ -91,10 +79,8 @@ func (pr *PullProcess) Flush() {
 
 	pr.flushing = false
 	pr.mu.Unlock()
-}
 
-func (pr *PullProcess) Name() string {
-	return "pull"
+	return nil
 }
 
 func (pr *PullProcess) ProcessTask(task updated.UpdateTask) error {

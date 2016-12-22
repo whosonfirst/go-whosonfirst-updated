@@ -61,32 +61,20 @@ func NewElasticsearchProcess(data_root string, es_host string, es_port string, e
 		logger:    logger,
 	}
 
-	// go pr.Monitor()
-
 	return &pr, nil
 }
 
-func (pr *ElasticsearchProcess) Monitor() {
-
-	buffer := time.Second * 30
-
-	for {
-
-		timer := time.NewTimer(buffer)
-		<-timer.C
-
-		pr.Flush()
-	}
-
+func (pr *ElasticsearchProcess) Name() string {
+	return "elasticsearch"
 }
 
-func (pr *ElasticsearchProcess) Flush() {
+func (pr *ElasticsearchProcess) Flush() error {
 
 	pr.mu.Lock()
 
 	if pr.flushing {
 		pr.mu.Unlock()
-		return
+		return nil
 	}
 
 	pr.flushing = true
@@ -100,10 +88,8 @@ func (pr *ElasticsearchProcess) Flush() {
 
 	pr.flushing = false
 	pr.mu.Unlock()
-}
 
-func (pr *ElasticsearchProcess) Name() string {
-	return "elasticsearch"
+	return nil
 }
 
 func (pr *ElasticsearchProcess) ProcessTask(task updated.UpdateTask) error {

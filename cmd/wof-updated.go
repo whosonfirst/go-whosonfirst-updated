@@ -12,6 +12,7 @@ import (
 	golog "log"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -197,6 +198,22 @@ func main() {
 	}()
 
 	logger.Info("ready to process tasks")
+
+	for _, pr := range processors {
+
+		go func(pr process.Process) {
+
+			buffer := time.Second * 30
+
+			for {
+
+				timer := time.NewTimer(buffer)
+				<-timer.C
+
+				pr.Flush()
+			}
+		}(pr)
+	}
 
 	for {
 

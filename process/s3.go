@@ -61,32 +61,16 @@ func NewS3Process(data_root string, s3_bucket string, s3_prefix string, logger *
 		logger:    logger,
 	}
 
-	// go pr.Monitor()
-
 	return &pr, nil
 }
 
-func (pr *S3Process) Monitor() {
-
-	buffer := time.Second * 30
-
-	for {
-
-		timer := time.NewTimer(buffer)
-		<-timer.C
-
-		pr.Flush()
-	}
-
-}
-
-func (pr *S3Process) Flush() {
+func (pr *S3Process) Flush() error {
 
 	pr.mu.Lock()
 
 	if pr.flushing {
 		pr.mu.Unlock()
-		return
+		return nil
 	}
 
 	pr.flushing = true
@@ -100,6 +84,8 @@ func (pr *S3Process) Flush() {
 
 	pr.flushing = false
 	pr.mu.Unlock()
+
+	return nil
 }
 
 func (pr *S3Process) Name() string {
