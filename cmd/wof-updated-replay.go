@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	_ "path/filepath"
 	"strings"
+	_ "time"
 )
 
 func main() {
@@ -55,7 +56,6 @@ func main() {
 	log.Println(strings.Join(git_args, " "))
 
 	cmd := exec.Command("git", git_args...)
-
 	out, err := cmd.Output()
 
 	os.Chdir(cwd)
@@ -64,5 +64,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("%s", out)
+	files := make([]string, 0)
+
+	for _, path := range strings.Split(string(out), "\n") {
+
+		if strings.HasSuffix(path, ".geojson") {
+			files = append(files, path)
+		}
+	}
+
+	log.Printf("%s", files)
 }
