@@ -159,6 +159,6 @@ func (gh *GitHooksProcessor) _process(repo string) error {
 		return err
 	}
 
-	log.Println(out)
+	log.Printf("%s\n", out)
 	return nil
 }
