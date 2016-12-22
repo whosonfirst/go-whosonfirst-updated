@@ -152,12 +152,13 @@ func (gh *GitHooksProcessor) _process(repo string) error {
 
 	cmd := exec.Command("git", git_args...)
 
-	_, err = cmd.Output()
+	out, err := cmd.Output()
 
 	if err != nil {
 		log.Println("failed to pull from master", err)
 		return err
 	}
 
+	log.Println(out)
 	return nil
 }
