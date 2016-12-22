@@ -19,7 +19,7 @@ func main() {
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
-	var githooks = flag.Bool("githooks", false, "...")
+	var git = flag.Bool("git", false, "...")
 	var s3 = flag.Bool("s3", false, "...")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
@@ -54,9 +54,9 @@ func main() {
 
 	processors := make([]process.Processor, 0)
 
-	if *githooks {
+	if *git {
 
-		pr, err := process.NewGitHooksProcessor(*data_root, logger)
+		pr, err := process.NewGitProcessor(*data_root, logger)
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate Git hooks processor", err)

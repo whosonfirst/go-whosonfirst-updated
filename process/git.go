@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type GitHooksProcessor struct {
+type GitProcessor struct {
 	Processor
 	queue     *queue.Queue
 	data_root string
@@ -22,7 +22,7 @@ type GitHooksProcessor struct {
 	logger    *log.WOFLogger
 }
 
-func NewGitHooksProcessor(data_root string, logger *log.WOFLogger) (*GitHooksProcessor, error) {
+func NewGitProcessor(data_root string, logger *log.WOFLogger) (*GitProcessor, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -44,7 +44,7 @@ func NewGitHooksProcessor(data_root string, logger *log.WOFLogger) (*GitHooksPro
 
 	mu := new(sync.Mutex)
 
-	pr := GitHooksProcessor{
+	pr := GitProcessor{
 		queue:     q,
 		data_root: data_root,
 		flushing:  false,
@@ -57,7 +57,7 @@ func NewGitHooksProcessor(data_root string, logger *log.WOFLogger) (*GitHooksPro
 	return &pr, nil
 }
 
-func (pr *GitHooksProcessor) Monitor() {
+func (pr *GitProcessor) Monitor() {
 
 	buffer := time.Second * 30
 
@@ -71,7 +71,7 @@ func (pr *GitHooksProcessor) Monitor() {
 
 }
 
-func (pr *GitHooksProcessor) Flush() {
+func (pr *GitProcessor) Flush() {
 
 	pr.mu.Lock()
 
@@ -93,13 +93,13 @@ func (pr *GitHooksProcessor) Flush() {
 	pr.mu.Unlock()
 }
 
-func (pr *GitHooksProcessor) Process(task updated.UpdateTask) error {
+func (pr *GitProcessor) Process(task updated.UpdateTask) error {
 
 	repo := task.Repo
 	return pr.ProcessRepo(repo)
 }
 
-func (pr *GitHooksProcessor) ProcessRepo(repo string) error {
+func (pr *GitProcessor) ProcessRepo(repo string) error {
 
 	if pr.queue.IsProcessing(repo) {
 		return pr.queue.Schedule(repo)
@@ -126,7 +126,7 @@ func (pr *GitHooksProcessor) ProcessRepo(repo string) error {
 	return nil
 }
 
-func (pr *GitHooksProcessor) _process(repo string) error {
+func (pr *GitProcessor) _process(repo string) error {
 
 	t1 := time.Now()
 
