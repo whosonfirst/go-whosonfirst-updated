@@ -154,26 +154,28 @@ func (pr *S3Processor) _process(repo string) error {
 
 	for _, path := range files {
 
-		_, ok := seen[path]
+		abs_path := filepath.Join(root, path)
+
+		_, ok := seen[abs_path]
 
 		if ok {
 			continue
 		}
 
-		tmpfile.Write([]byte(path + "\n"))
-		seen[path] = true
+		tmpfile.Write([]byte(abs_path + "\n"))
+		seen[abs_path] = true
 	}
 
 	pr.logger.Info(tmpfile.Name())
 
-	debug := false
+	debug := true
 	procs := 10
 
 	sink := s3.WOFSync(pr.s3_bucket, pr.s3_prefix, procs, debug, pr.logger)
 
 	pr.logger.Info("%v", sink)
 
-	// sink.SyncFileList(tmpfile.Name(), root)
+	sink.SyncFileList(tmpfile.Name(), root)
 
 	return nil
 }
