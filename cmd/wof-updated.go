@@ -16,16 +16,20 @@ import (
 
 func main() {
 
+	var data_root = flag.String("data-root", "", "...")
+	var es = flag.Bool("es", false, "")
+	var es_host = flag.String("es-host", "localhost", "")
+	var es_port = flag.String("es-port", "9200", "")
+	var es_index = flag.String("es-index", "whosonfirst", "")
+	var logfile = flag.String("logfile", "", "Write logging information to this file")
+	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var pull = flag.Bool("pull", false, "...")
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
-	var pull = flag.Bool("pull", false, "...")
 	var s3 = flag.Bool("s3", false, "...")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
-	var data_root = flag.String("data-root", "", "...")
-	var logfile = flag.String("logfile", "", "Write logging information to this file")
-	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
 	var stdout = flag.Bool("stdout", false, "...")
 
 	flag.Parse()
@@ -79,6 +83,17 @@ func main() {
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate S3 hooks processor", err)
+		}
+
+		processors = append(processors, pr)
+	}
+
+	if *es {
+
+		pr, err := process.NewElasticsearchProcess(*data_root, *es_host, *es_port, *es_index, logger)
+
+		if err != nil {
+			golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
 		}
 
 		processors = append(processors, pr)

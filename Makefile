@@ -10,6 +10,7 @@ self:   prep rmdeps
 	cp  updated.go src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r process src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r queue src/github.com/whosonfirst/go-whosonfirst-updated/
+	cp -r utils src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r vendor/src/* src/
 
 rmdeps:
@@ -36,4 +37,5 @@ fmt:
 	go fmt cmd/*.go
 	go fmt process/*.go
 	go fmt queue/*.go
+	go fmt utils/*.go
 	go fmt updated.go

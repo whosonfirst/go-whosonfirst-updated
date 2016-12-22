@@ -1,32 +1,31 @@
 package process
 
 import (
-	_ "fmt"
 	"github.com/whosonfirst/go-whosonfirst-log"
-	"github.com/whosonfirst/go-whosonfirst-s3"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
-	"io/ioutil"
+	"github.com/whosonfirst/go-whosonfirst-updated/utils"
 	"os"
-	_ "os/exec"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
 )
 
-type S3Process struct {
+type ElasticsearchProcess struct {
 	Process
 	queue     *queue.Queue
 	data_root string
 	flushing  bool
 	mu        *sync.Mutex
 	files     map[string][]string
-	s3_bucket string
-	s3_prefix string
+	es_host   string
+	es_port   string
+	es_index  string
 	logger    *log.WOFLogger
 }
 
-func NewS3Process(data_root string, s3_bucket string, s3_prefix string, logger *log.WOFLogger) (*S3Process, error) {
+func NewElasticsearchProcess(data_root string, es_host string, es_port string, es_index string, logger *log.WOFLogger) (*ElasticsearchProcess, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -50,14 +49,15 @@ func NewS3Process(data_root string, s3_bucket string, s3_prefix string, logger *
 
 	mu := new(sync.Mutex)
 
-	pr := S3Process{
+	pr := ElasticsearchProcess{
 		queue:     q,
 		data_root: data_root,
 		flushing:  false,
 		mu:        mu,
 		files:     files,
-		s3_bucket: s3_bucket,
-		s3_prefix: s3_prefix,
+		es_host:   es_host,
+		es_port:   es_port,
+		es_index:  es_index,
 		logger:    logger,
 	}
 
@@ -66,7 +66,7 @@ func NewS3Process(data_root string, s3_bucket string, s3_prefix string, logger *
 	return &pr, nil
 }
 
-func (pr *S3Process) Monitor() {
+func (pr *ElasticsearchProcess) Monitor() {
 
 	buffer := time.Second * 30
 
@@ -80,7 +80,7 @@ func (pr *S3Process) Monitor() {
 
 }
 
-func (pr *S3Process) Flush() {
+func (pr *ElasticsearchProcess) Flush() {
 
 	pr.mu.Lock()
 
@@ -102,11 +102,11 @@ func (pr *S3Process) Flush() {
 	pr.mu.Unlock()
 }
 
-func (pr *S3Process) Name() string {
-	return "s3"
+func (pr *ElasticsearchProcess) Name() string {
+	return "elasticsearch"
 }
 
-func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
+func (pr *ElasticsearchProcess) ProcessTask(task updated.UpdateTask) error {
 
 	repo := task.Repo
 
@@ -128,7 +128,7 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 	return pr.ProcessRepo(repo)
 }
 
-func (pr *S3Process) ProcessRepo(repo string) error {
+func (pr *ElasticsearchProcess) ProcessRepo(repo string) error {
 
 	if pr.queue.IsProcessing(repo) {
 		return pr.queue.Schedule(repo)
@@ -155,7 +155,7 @@ func (pr *S3Process) ProcessRepo(repo string) error {
 	return nil
 }
 
-func (pr *S3Process) _process(repo string) error {
+func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	t1 := time.Now()
 
@@ -173,16 +173,7 @@ func (pr *S3Process) _process(repo string) error {
 		return err
 	}
 
-	tmpfile, err := ioutil.TempFile("", "updated")
-
-	if err != nil {
-		pr.logger.Error("Failed to create tmp file", err)
-		return err
-	}
-
-	defer func() {
-		os.Remove(tmpfile.Name())
-	}()
+	/* sudo wrap all of this in a single function somewhere... */
 
 	pr.mu.Lock()
 	files := pr.files[repo]
@@ -190,35 +181,51 @@ func (pr *S3Process) _process(repo string) error {
 	delete(pr.files, repo)
 	pr.mu.Unlock()
 
-	seen := make(map[string]bool)
-
-	for _, path := range files {
-
-		abs_path := filepath.Join(root, path)
-
-		_, ok := seen[abs_path]
-
-		if ok {
-			continue
-		}
-
-		tmpfile.Write([]byte(abs_path + "\n"))
-		seen[abs_path] = true
-	}
-
-	pr.logger.Info(tmpfile.Name())
-
-	debug := false
-	procs := 10
-
-	sink := s3.WOFSync(pr.s3_bucket, pr.s3_prefix, procs, debug, pr.logger)
-
-	err = sink.SyncFileList(tmpfile.Name(), root)
+	tmpfile, err := utils.FilesToFileList(files, root)
 
 	if err != nil {
-		pr.logger.Error("Failed to sync file list because %s", err)
+
+		pr.mu.Lock()
+
+		_, ok := pr.files[repo]
+
+		if ok {
+
+			for _, path := range files {
+				pr.files[repo] = append(pr.files[repo], path)
+			}
+
+		} else {
+			pr.files[repo] = files
+		}
+
+		pr.mu.Unlock()
+
 		return err
 	}
 
+	/* end of sudo wrap all of this in a single function somewhere... */
+
+	defer os.Remove(tmpfile.Name())
+
+	index_es := "FIX ME"
+
+	index_args := []string{
+		"--host", pr.es_host,
+		"--port", pr.es_port,
+		"--index", pr.es_index,
+		tmpfile.Name(),
+	}
+
+	cmd := exec.Command(index_es, index_args...)
+
+	out, err := cmd.Output()
+
+	if err != nil {
+		pr.logger.Error("failed to index Elasticsearch %s", err)
+		return err
+	}
+
+	pr.logger.Debug("%s\n", out)
 	return nil
 }
