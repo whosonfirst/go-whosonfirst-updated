@@ -2,9 +2,10 @@ package process
 
 import (
 	"fmt"
+	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
-	"log"
+	_ "log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +19,10 @@ type GitHooksProcessor struct {
 	data_root string
 	flushing  bool
 	mu        *sync.Mutex
+	logger    *log.WOFLogger
 }
 
-func NewGitHooksProcessor(data_root string) (*GitHooksProcessor, error) {
+func NewGitHooksProcessor(data_root string, logger *log.WOFLogger) (*GitHooksProcessor, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -42,19 +44,20 @@ func NewGitHooksProcessor(data_root string) (*GitHooksProcessor, error) {
 
 	mu := new(sync.Mutex)
 
-	gh := GitHooksProcessor{
+	pr := GitHooksProcessor{
 		queue:     q,
 		data_root: data_root,
 		flushing:  false,
 		mu:        mu,
+		logger:    logger,
 	}
 
-	go gh.Monitor()
+	go pr.Monitor()
 
-	return &gh, nil
+	return &pr, nil
 }
 
-func (gh *GitHooksProcessor) Monitor() {
+func (pr *GitHooksProcessor) Monitor() {
 
 	buffer := time.Second * 30
 
@@ -63,58 +66,58 @@ func (gh *GitHooksProcessor) Monitor() {
 		timer := time.NewTimer(buffer)
 		<-timer.C
 
-		gh.Flush()
+		pr.Flush()
 	}
 
 }
 
-func (gh *GitHooksProcessor) Flush() {
+func (pr *GitHooksProcessor) Flush() {
 
-	gh.mu.Lock()
+	pr.mu.Lock()
 
-	if gh.flushing {
-		gh.mu.Unlock()
+	if pr.flushing {
+		pr.mu.Unlock()
 		return
 	}
 
-	gh.flushing = true
-	gh.mu.Unlock()
+	pr.flushing = true
+	pr.mu.Unlock()
 
-	for _, repo := range gh.queue.Pending() {
-		go gh.ProcessRepo(repo)
+	for _, repo := range pr.queue.Pending() {
+		go pr.ProcessRepo(repo)
 	}
 
-	gh.mu.Lock()
+	pr.mu.Lock()
 
-	gh.flushing = false
-	gh.mu.Unlock()
+	pr.flushing = false
+	pr.mu.Unlock()
 }
 
-func (gh *GitHooksProcessor) Process(task updated.UpdateTask) error {
+func (pr *GitHooksProcessor) Process(task updated.UpdateTask) error {
 
 	repo := task.Repo
-	return gh.ProcessRepo(repo)
+	return pr.ProcessRepo(repo)
 }
 
-func (gh *GitHooksProcessor) ProcessRepo(repo string) error {
+func (pr *GitHooksProcessor) ProcessRepo(repo string) error {
 
-	if gh.queue.IsProcessing(repo) {
-		return gh.queue.Schedule(repo)
+	if pr.queue.IsProcessing(repo) {
+		return pr.queue.Schedule(repo)
 	}
 
-	err := gh.queue.Lock(repo)
+	err := pr.queue.Lock(repo)
 
 	if err != nil {
 		return err
 	}
 
-	err = gh._process(repo)
+	err = pr._process(repo)
 
 	if err != nil {
 		return err
 	}
 
-	err = gh.queue.Release(repo)
+	err = pr.queue.Release(repo)
 
 	if err != nil {
 		return err
@@ -123,23 +126,22 @@ func (gh *GitHooksProcessor) ProcessRepo(repo string) error {
 	return nil
 }
 
-func (gh *GitHooksProcessor) _process(repo string) error {
+func (pr *GitHooksProcessor) _process(repo string) error {
 
 	t1 := time.Now()
 
 	defer func() {
 
 		t2 := time.Since(t1)
-		log.Printf("time to process %s: %v\n", repo, t2)
+		pr.logger.Info("time to process %s: %v\n", repo, t2)
 	}()
 
-	abs_path := filepath.Join(gh.data_root, repo)
-	log.Println("process", abs_path)
+	abs_path := filepath.Join(pr.data_root, repo)
 
 	_, err := os.Stat(abs_path)
 
 	if os.IsNotExist(err) {
-		log.Println("Can't find repo", abs_path)
+		pr.logger.Error("Can't find repo %s", abs_path)
 		return err
 	}
 
@@ -155,10 +157,10 @@ func (gh *GitHooksProcessor) _process(repo string) error {
 	out, err := cmd.Output()
 
 	if err != nil {
-		log.Println("failed to pull from master", err)
+		pr.logger.Error("failed to pull from master %s", err)
 		return err
 	}
 
-	log.Printf("%s\n", out)
+	pr.logger.Debug("%s\n", out)
 	return nil
 }

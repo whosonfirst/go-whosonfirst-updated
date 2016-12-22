@@ -4,11 +4,13 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/process"
 	"gopkg.in/redis.v1"
 	"io"
-	"log"
+	golog "log"
+	"os"
 	"strings"
 )
 
@@ -18,33 +20,68 @@ func main() {
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
 	var githooks = flag.Bool("githooks", false, "...")
-	var githooks_root = flag.String("githooks-data-root", "", "...")
+	var s3 = flag.Bool("s3", false, "...")
+	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
+	var s3_prefix = flag.String("s3-prefix", "", "...")
+	var data_root = flag.String("data-root", "", "...")
+	var logfile = flag.String("logfile", "", "Write logging information to this file")
+	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var stdout = flag.Bool("stdout", false, "...")
 
 	flag.Parse()
 
-	log.Println("START")
+	writers := make([]io.Writer, 0)
+
+	if *stdout {
+		writers = append(writers, os.Stdout)
+	}
+
+	if *logfile != "" {
+
+		fh, err := os.OpenFile(*logfile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+
+		if err != nil {
+			golog.Fatal(err)
+		}
+
+		writers = append(writers, fh)
+	}
+
+	writer := io.MultiWriter(writers...)
+
+	logger := log.NewWOFLogger("updated")
+	logger.AddLogger(writer, *loglevel)
 
 	processors := make([]process.Processor, 0)
 
 	if *githooks {
 
-		gh, err := process.NewGitHooksProcessor(*githooks_root)
+		pr, err := process.NewGitHooksProcessor(*data_root, logger)
 
 		if err != nil {
-			log.Fatal("Failed to instantiate Git hooks processor", err)
+			golog.Fatal("Failed to instantiate Git hooks processor", err)
 		}
 
-		processors = append(processors, gh)
+		processors = append(processors, pr)
+	}
+
+	if *s3 {
+
+		pr, err := process.NewS3Processor(*data_root, *s3_bucket, *s3_prefix, logger)
+
+		if err != nil {
+			golog.Fatal("Failed to instantiate S3 hooks processor", err)
+		}
+
+		processors = append(processors, pr)
 	}
 
 	if len(processors) == 0 {
-		log.Fatal("You forgot to specify any processors, silly")
+		golog.Fatal("You forgot to specify any processors, silly")
 	}
 
 	ps_messages := make(chan string)
 	up_messages := make(chan updated.UpdateTask)
-
-	log.Println("WOO")
 
 	go func() {
 
@@ -62,10 +99,10 @@ func main() {
 		err := pubsub_client.Subscribe(*redis_channel)
 
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal("Failed to subscribe to Redis channel: %s", err)
 		}
 
-		log.Println("ready to receive pubsub messages")
+		logger.Info("ready to receive pubsub messages")
 
 		for {
 
@@ -81,7 +118,7 @@ func main() {
 
 	go func() {
 
-		log.Println("ready to process pubsub messages")
+		logger.Info("ready to process pubsub messages")
 
 		for {
 
@@ -102,12 +139,12 @@ func main() {
 				}
 
 				if err != nil {
-					log.Println(err)
+					logger.Error("Failed to read data: %s", err)
 					break
 				}
 
 				if len(row) != 3 {
-					log.Println("No idea how to process row", row)
+					logger.Warning("No idea how to process row", row)
 					continue
 				}
 
@@ -136,12 +173,12 @@ func main() {
 		}
 	}()
 
-	log.Println("ready to process tasks")
+	logger.Info("ready to process tasks")
 
 	for {
 
 		task := <-up_messages
-		log.Println("got task", task)
+		logger.Info("got task: %s", task)
 
 		for _, p := range processors {
 
@@ -149,5 +186,5 @@ func main() {
 		}
 	}
 
-	log.Println("stop")
+	logger.Info("stop")
 }
