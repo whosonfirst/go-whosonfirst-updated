@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
+	"os"
 	"os/exec"
-	"path/filepath"
+	_ "path/filepath"
 	"strings"
 )
 
@@ -17,18 +17,31 @@ func main() {
 
 	flag.Parse()
 
-	dot_git := filepath.Join(*repo, ".git")
+	_, err := os.Stat(*repo)
 
-	git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
-	work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
+	if os.IsNotExist(err) {
+		log.Fatal("Repo does not exist", *repo)
+	}
 
-	// pretty sure the git/work dir stuff is incorrect in this context...
-	// would that I could understand the libgit2 documentation...
-	// (20161222/thisisaaronland)
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// I wish this wasn't necessary. I wish I could make sense of the
+	// libgit2 documentation... (20161222/thisisaaronland)
+
+	err = os.Chdir(*repo)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// https://git-scm.com/docs/git-diff
 
 	git_args := []string{
-		git_dir, work_tree,
-		"diff", "--pretty='format:'", "--name-only"
+		"diff", "--pretty=format:", "--name-only",
 	}
 
 	if *start_commit != "" {
@@ -44,6 +57,8 @@ func main() {
 	cmd := exec.Command("git", git_args...)
 
 	out, err := cmd.Output()
+
+	os.Chdir(cwd)
 
 	if err != nil {
 		log.Fatal(err)
