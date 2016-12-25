@@ -202,6 +202,7 @@ func main() {
 					continue
 				}
 
+				// hash := row[0]
 				repo := row[1]
 				path := row[2]
 
@@ -218,6 +219,7 @@ func main() {
 			for repo, commits := range tasks {
 
 				t := updated.UpdateTask{
+					Hash:	 "fix me",
 					Repo:    repo,
 					Commits: commits,
 				}
