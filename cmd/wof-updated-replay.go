@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
+	"github.com/whosonfirst/go-whosonfirst-csv"
+	"gopkg.in/redis.v1"
 	"log"
 	"os"
 	"os/exec"
-	_ "path/filepath"
-	"gopkg.in/redis.v1"
+	"path/filepath"
 	"strings"
 	_ "time"
 )
@@ -49,14 +52,14 @@ func main() {
 
 	/*
 
-	git log --pretty=format:%H --no-merges --name-only 613b6e7cf63ae58231a596ffa1b2e80e9f2b9038^..master
-	044ca5543338d1e3d1788a3d522f42b9cea08517
-	data/110/878/641/1/1108786411.geojson
-	data/110/878/641/3/1108786413.geojson
+		git log --pretty=format:%H --no-merges --name-only 613b6e7cf63ae58231a596ffa1b2e80e9f2b9038^..master
+		044ca5543338d1e3d1788a3d522f42b9cea08517
+		data/110/878/641/1/1108786411.geojson
+		data/110/878/641/3/1108786413.geojson
 
-	e0653652b33a8f1b473c05f8815131b404b7ffde
-	data/588/389/817/588389817.geojson
-	data/588/390/107/588390107.geojson
+		e0653652b33a8f1b473c05f8815131b404b7ffde
+		data/588/389/817/588389817.geojson
+		data/588/390/107/588390107.geojson
 
 	*/
 
@@ -83,14 +86,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	files := make([]string, 0)
+	var b bytes.Buffer
+	buf := bufio.NewWriter(&b)
+
+	fieldnames := []string{"hash", "repo", "path"}
+	writer, err := csv.NewDictWriter(buf, fieldnames)
+
+	// files := make([]string, 0)
 
 	for _, path := range strings.Split(string(out), "\n") {
 
 		if strings.HasSuffix(path, ".geojson") {
-			files = append(files, path)
+			// files = append(files, path)
+
+			row := make(map[string]string)
+			row["hash"] = "hash"
+			row["repo"] = filepath.Base(*repo)
+			row["path"] = path
+
+			writer.WriteRow(row)
 		}
 	}
+
+	buf.Flush()
 
 	redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
 
@@ -100,7 +118,7 @@ func main() {
 
 	defer redis_client.Close()
 
-	redis_client.Publish(*redis_channel, "foo")
+	redis_client.Publish(*redis_channel, b.String())
 
-	log.Printf("%s", files)
+	// log.Printf("%s", files)
 }
