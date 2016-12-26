@@ -54,6 +54,7 @@ func main() {
 	var es_index_tool = flag.String("es-index-tool", "/usr/local/bin/wof-es-index-filelist", "")
 	var logfile = flag.String("logfile", "", "Write logging information to this file")
 	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var null = flag.Bool("null", false, "...")	
 	var pull = flag.Bool("pull", false, "...")
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
@@ -130,6 +131,17 @@ func main() {
 		processors = append(processors, pr)
 	}
 
+	if *null {
+
+		pr, err := process.NewNullProcess(*data_root, logger)
+
+		if err != nil {
+			golog.Fatal("Failed to instantiate null hooks processor", err)
+		}
+
+		processors = append(processors, pr)
+	}
+
 	if len(processors) == 0 {
 		golog.Fatal("You forgot to specify any processors, silly")
 	}
@@ -183,7 +195,7 @@ func main() {
 
 			rdr := csv.NewReader(strings.NewReader(msg))
 
-			tasks := make(map[string][]string)
+			tasks := make(map[string]map[string][]string)
 
 			for {
 				row, err := rdr.Read()
@@ -202,29 +214,38 @@ func main() {
 					continue
 				}
 
-				// hash := row[0]
+				hash := row[0]
 				repo := row[1]
 				path := row[2]
 
-				commits, ok := tasks[repo]
+				_, ok := tasks[repo]
+
+				if !ok {
+					tasks[repo] = make(map[string][]string)
+				}
+
+				commits, ok := tasks[repo][hash]
 
 				if !ok {
 					commits = make([]string, 0)
 				}
 
 				commits = append(commits, path)
-				tasks[repo] = commits
+				tasks[repo][hash] = commits
 			}
 
-			for repo, commits := range tasks {
+			for repo, details := range tasks {
 
-				t := updated.UpdateTask{
-					Hash:	 "fix me",
-					Repo:    repo,
-					Commits: commits,
+				for hash, commits := range details {
+
+					t := updated.UpdateTask{
+						Hash:    hash,
+						Repo:    repo,
+						Commits: commits,
+					}
+
+					up_messages <- t
 				}
-
-				up_messages <- t
 			}
 		}
 	}()

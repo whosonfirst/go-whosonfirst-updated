@@ -1,7 +1,7 @@
 package updated
 
 type UpdateTask struct {
-     	Hash	string
+	Hash    string
 	Repo    string
 	Commits []string
 }
