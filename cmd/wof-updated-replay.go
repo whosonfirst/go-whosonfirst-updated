@@ -17,6 +17,8 @@ import (
 
 func main() {
 
+	var dryrun = flag.Bool("dryrun", false, "...")
+
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
@@ -50,29 +52,21 @@ func main() {
 
 	// https://git-scm.com/docs/git-diff
 
-	/*
-
-		git log --pretty=format:%H --no-merges --name-only 613b6e7cf63ae58231a596ffa1b2e80e9f2b9038^..master
-		044ca5543338d1e3d1788a3d522f42b9cea08517
-		data/110/878/641/1/1108786411.geojson
-		data/110/878/641/3/1108786413.geojson
-
-		e0653652b33a8f1b473c05f8815131b404b7ffde
-		data/588/389/817/588389817.geojson
-		data/588/390/107/588390107.geojson
-
-	*/
-
 	git_args := []string{
-		"diff", "--pretty=format:", "--name-only",
+		// "diff", "--pretty=format:", "--name-only",
+		"log", "--pretty=format:#%H", "--name-only",
 	}
 
 	if *start_commit != "" {
-		git_args = append(git_args, *start_commit)
-	}
 
-	if *stop_commit != "" {
-		git_args = append(git_args, *stop_commit)
+		stop := "HEAD"
+
+		if *stop_commit != "" {
+			stop = *stop_commit
+		}
+
+		commit_range := fmt.Sprintf("%s^...%s", *start_commit, stop)
+		git_args = append(git_args, commit_range)
 	}
 
 	log.Println(strings.Join(git_args, " "))
@@ -92,17 +86,20 @@ func main() {
 	fieldnames := []string{"hash", "repo", "path"}
 	writer, err := csv.NewDictWriter(buf, fieldnames)
 
-	// files := make([]string, 0)
+	var hash string
 
-	for _, path := range strings.Split(string(out), "\n") {
+	for _, ln := range strings.Split(string(out), "\n") {
 
-		if strings.HasSuffix(path, ".geojson") {
-			// files = append(files, path)
+		if strings.HasPrefix(ln, "#") {
+			hash = strings.Replace(ln, "#", "", 1)
+		}
+
+		if strings.HasSuffix(ln, ".geojson") {
 
 			row := make(map[string]string)
-			row["hash"] = "hash"
+			row["hash"] = hash
 			row["repo"] = filepath.Base(*repo)
-			row["path"] = path
+			row["path"] = ln
 
 			writer.WriteRow(row)
 		}
@@ -110,15 +107,19 @@ func main() {
 
 	buf.Flush()
 
-	redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
+	log.Println(b.String())
 
-	redis_client := redis.NewTCPClient(&redis.Options{
-		Addr: redis_endpoint,
-	})
+	if !*dryrun {
+		redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
 
-	defer redis_client.Close()
+		redis_client := redis.NewTCPClient(&redis.Options{
+			Addr: redis_endpoint,
+		})
 
-	redis_client.Publish(*redis_channel, b.String())
+		defer redis_client.Close()
+
+		redis_client.Publish(*redis_channel, b.String())
+	}
 
 	// log.Printf("%s", files)
 }
