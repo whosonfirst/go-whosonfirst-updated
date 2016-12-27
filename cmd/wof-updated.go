@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	// "github.com/whosonfirst/go-slackcat-writer"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/process"
@@ -62,6 +63,20 @@ func main() {
 	logger := log.NewWOFLogger("updated")
 	logger.AddLogger(writer, *loglevel)
 
+	/*
+
+	if *slack {
+
+	   	slack_logger, err := slackcat.NewWriter(*slackcat_conf)
+
+		if err != nil {
+			golog.Fatal(err)
+		}
+
+		logger.AddLogger(slack_logger, "status")
+	}
+	*
+	
 	processors_pre := make([]process.Process, 0)
 	processors_post := make([]process.Process, 0)
 	processors_async := make([]process.Process, 0)
@@ -76,7 +91,7 @@ func main() {
 
 	for _, name := range strings.Split(*pre_processors, ",") {
 
-		logger.Debug("configure pre processor %s", name)
+		logger.Debug("Configure pre processor %s", name)
 
 		if name == "pull" {
 			pr, err := process.NewPullProcess(*data_root, logger)
@@ -91,7 +106,7 @@ func main() {
 
 	for _, name := range strings.Split(*processors, ",") {
 
-		logger.Debug("configure async processor %s", name)
+		logger.Debug("Configure async processor %s", name)
 
 		if name == "s3" {
 
@@ -130,7 +145,7 @@ func main() {
 
 	for _, name := range strings.Split(*post_processors, ",") {
 
-		logger.Debug("configure post processor %s", name)
+		logger.Debug("Configure post processor %s", name)
 
 		if name == "pubsub" {
 
@@ -170,14 +185,13 @@ func main() {
 			logger.Fatal("Failed to subscribe to Redis channel: %s", err)
 		}
 
-		logger.Debug("ready to receive (updated) PubSub messages")
+		logger.Debug("Ready to receive (updated) PubSub messages")
 
 		for {
 
 			i, _ := pubsub_client.Receive()
 
 			if msg, _ := i.(*redis.Message); msg != nil {
-				// log.Println("message", msg)
 				ps_messages <- msg.Payload
 			}
 		}
@@ -186,7 +200,7 @@ func main() {
 
 	go func() {
 
-		logger.Debug("ready to process (updated) PubSub messages")
+		logger.Debug("Ready to process (updated) PubSub messages")
 
 		for {
 
@@ -252,7 +266,7 @@ func main() {
 		}
 	}()
 
-	logger.Debug("ready to process (updated) tasks")
+	logger.Debug("Ready to process (updated) tasks")
 
 	all_processors := [][]process.Process{
 		processors_pre,
@@ -323,6 +337,10 @@ func main() {
 			}(pr, wg)
 
 		}
+
+		// This does not account for things that might still be in a
+		// pending queue waiting to be processed, usually because some	
+		// other earlier process hasn't finished (20161227/thisisaaronland)
 
 		wg.Wait()
 
