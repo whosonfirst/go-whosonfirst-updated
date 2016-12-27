@@ -164,7 +164,7 @@ func main() {
 			logger.Fatal("Failed to subscribe to Redis channel: %s", err)
 		}
 
-		logger.Info("ready to receive pubsub messages")
+		logger.Debug("ready to receive (updated) PubSub messages")
 
 		for {
 
@@ -180,7 +180,7 @@ func main() {
 
 	go func() {
 
-		logger.Info("ready to process pubsub messages")
+		logger.Debug("ready to process (updated) PubSub messages")
 
 		for {
 
@@ -246,7 +246,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("ready to process tasks")
+	logger.Debug("ready to process (updated) tasks")
 
 	all_processors := [][]process.Process{
 		processors_pre,
@@ -260,14 +260,14 @@ func main() {
 
 			go func(pr process.Process) {
 
-				buffer := time.Second * 30
+				buffer := time.Second * 60
 
 				for {
 
 					timer := time.NewTimer(buffer)
 					<-timer.C
 
-					logger.Info("invoking flush for %s", pr.Name())
+					logger.Debug("Invoking flush for %s", pr.Name())
 					pr.Flush()
 				}
 			}(pr)
@@ -277,20 +277,27 @@ func main() {
 	for {
 
 		task := <-up_messages
-		logger.Info("got task: %s", task)
+		logger.Info("Processing task: %s", task)
+
+		ok := true
 
 		for _, pr := range processors_pre {
 
 			name := pr.Name()
-			logger.Info("invoking pre-processor %s", name)
+			logger.Debug("Invoking pre-processor %s", name)
 
 			err := pr.ProcessTask(task)
 
 			if err != nil {
 				logger.Error("Failed to complete %s process for task (%s) because: %s", name, task, err)
+				ok = false
 				break
 			}
 
+		}
+
+		if !ok {
+			continue
 		}
 
 		wg := new(sync.WaitGroup)
@@ -298,7 +305,7 @@ func main() {
 		for _, pr := range processors_async {
 
 			name := pr.Name()
-			logger.Info("invoking processor %s", name)
+			logger.Debug("Invoking processor %s", name)
 
 			wg.Add(1)
 
@@ -314,12 +321,12 @@ func main() {
 		for _, pr := range processors_post {
 
 			name := pr.Name()
-			logger.Info("invoking post-processor %s", name)
+			logger.Debug("Invoking post-processor %s", name)
 
 			pr.ProcessTask(task)
 		}
 
 	}
 
-	logger.Info("stop")
+	os.Exit(0)
 }
