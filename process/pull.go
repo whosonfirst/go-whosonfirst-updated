@@ -152,6 +152,6 @@ func (pr *PullProcess) _process(repo string) error {
 		return err
 	}
 
-	pr.logger.Debug("Successfully pulled from %s\n", out)
+	pr.logger.Debug("Successfully pulled from master (%s)", out)
 	return nil
 }

@@ -65,18 +65,18 @@ func main() {
 
 	/*
 
-	if *slack {
+		if *slack {
 
-	   	slack_logger, err := slackcat.NewWriter(*slackcat_conf)
+		   	slack_logger, err := slackcat.NewWriter(*slackcat_conf)
 
-		if err != nil {
-			golog.Fatal(err)
+			if err != nil {
+				golog.Fatal(err)
+			}
+
+			logger.AddLogger(slack_logger, "status")
 		}
-
-		logger.AddLogger(slack_logger, "status")
-	}
 	*/
-	
+
 	processors_pre := make([]process.Process, 0)
 	processors_post := make([]process.Process, 0)
 	processors_async := make([]process.Process, 0)
@@ -301,24 +301,25 @@ func main() {
 		task := <-up_messages
 		logger.Info("Processing task: %s", task)
 
-		ok := true
+		ok_pre := true
 
 		for _, pr := range processors_pre {
 
 			name := pr.Name()
-			logger.Debug("Invoking pre-processor %s", name)
+			logger.Debug("Invoking pre-processor %s (%s)", name, task)
 
 			err := pr.ProcessTask(task)
 
 			if err != nil {
 				logger.Error("Failed to complete %s process for task (%s) because: %s", name, task, err)
-				ok = false
+				ok_pre = false
 				break
 			}
 
 		}
 
-		if !ok {
+		if !ok_pre {
+			logger.Debug("Skipping remaining for processes for task %s", task)
 			continue
 		}
 
@@ -327,7 +328,7 @@ func main() {
 		for _, pr := range processors_async {
 
 			name := pr.Name()
-			logger.Debug("Invoking processor %s", name)
+			logger.Debug("Invoking ascnc processor %s (%s)", name, task)
 
 			wg.Add(1)
 
@@ -339,7 +340,7 @@ func main() {
 		}
 
 		// This does not account for things that might still be in a
-		// pending queue waiting to be processed, usually because some	
+		// pending queue waiting to be processed, usually because some
 		// other earlier process hasn't finished (20161227/thisisaaronland)
 
 		wg.Wait()
@@ -347,7 +348,7 @@ func main() {
 		for _, pr := range processors_post {
 
 			name := pr.Name()
-			logger.Debug("Invoking post-processor %s", name)
+			logger.Debug("Invoking post-processor %s (%s)", name, task)
 
 			pr.ProcessTask(task)
 		}
