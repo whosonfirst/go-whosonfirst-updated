@@ -126,10 +126,12 @@ func (pr *S3Process) ProcessRepo(repo string) error {
 		return err
 	}
 
-	err = pr._process(repo)
+	if len(pr.files[repo]) > 0 {
+		err = pr._process(repo)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	err = pr.queue.Release(repo)
@@ -196,6 +198,8 @@ func (pr *S3Process) _process(repo string) error {
 
 	debug := false
 	procs := 10
+
+	pr.logger.Debug("Process (S3) file list %s", tmpfile.Name())
 
 	sink := s3.WOFSync(pr.s3_bucket, pr.s3_prefix, procs, debug, pr.logger)
 

@@ -76,6 +76,8 @@ func main() {
 
 	for _, name := range strings.Split(*pre_processors, ",") {
 
+		logger.Debug("configure pre processor %s", name)
+
 		if name == "pull" {
 			pr, err := process.NewPullProcess(*data_root, logger)
 
@@ -88,6 +90,8 @@ func main() {
 	}
 
 	for _, name := range strings.Split(*processors, ",") {
+
+		logger.Debug("configure async processor %s", name)
 
 		if name == "s3" {
 
@@ -125,6 +129,8 @@ func main() {
 	}
 
 	for _, name := range strings.Split(*post_processors, ",") {
+
+		logger.Debug("configure post processor %s", name)
 
 		if name == "pubsub" {
 
@@ -257,6 +263,8 @@ func main() {
 	for _, pr_group := range all_processors {
 
 		for _, pr := range pr_group {
+
+			logger.Debug("Set up monitoring for %s", pr.Name())
 
 			go func(pr process.Process) {
 

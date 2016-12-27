@@ -141,10 +141,12 @@ func (pr *ElasticsearchProcess) ProcessRepo(repo string) error {
 		return err
 	}
 
-	err = pr._process(repo)
+	if len(pr.files[repo]) > 0 {
+		err = pr._process(repo)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	err = pr.queue.Release(repo)
@@ -208,6 +210,8 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 	/* end of sudo wrap all of this in a single function somewhere... */
 
 	defer os.Remove(tmpfile.Name())
+
+	pr.logger.Debug("Process (ES) file list %s", tmpfile.Name())
 
 	// please write me in Go... (20161222/thisisaaronland)
 
