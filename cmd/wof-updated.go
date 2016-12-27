@@ -75,7 +75,7 @@ func main() {
 
 		logger.AddLogger(slack_logger, "status")
 	}
-	*
+	*/
 	
 	processors_pre := make([]process.Process, 0)
 	processors_post := make([]process.Process, 0)

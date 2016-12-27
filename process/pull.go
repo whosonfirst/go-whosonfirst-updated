@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -147,10 +148,10 @@ func (pr *PullProcess) _process(repo string) error {
 	out, err := cmd.Output()
 
 	if err != nil {
-		pr.logger.Error("failed to pull from master %s", err)
+		pr.logger.Error("Failed to pull from master: %s (git %s)", err, strings.Join(git_args, " "))
 		return err
 	}
 
-	pr.logger.Debug("%s\n", out)
+	pr.logger.Debug("Successfully pulled from %s\n", out)
 	return nil
 }
