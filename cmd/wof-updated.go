@@ -12,29 +12,28 @@ import (
 	golog "log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
 func main() {
 
 	var data_root = flag.String("data-root", "", "...")
-	var es = flag.Bool("es", false, "")
 	var es_host = flag.String("es-host", "localhost", "")
 	var es_port = flag.String("es-port", "9200", "")
 	var es_index = flag.String("es-index", "whosonfirst", "")
 	var es_index_tool = flag.String("es-index-tool", "/usr/local/bin/wof-es-index-filelist", "")
 	var logfile = flag.String("logfile", "", "Write logging information to this file")
 	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
-	var null = flag.Bool("null", false, "...")
-	var pubsub = flag.Bool("pubsub", false, "...")
+	var processors = flag.String("processors", "", "Valid options include: es,null,s3")
+	var post_processors = flag.String("post-processors", "", "Valid options include: pubsub")
+	var pre_processors = flag.String("pre-processors", "", "Valid options include: pull")
 	var pubsub_host = flag.String("pubsub-host", "localhost", "PubSub host (for notifications)")
 	var pubsub_port = flag.Int("pubsub-port", 6379, "PubSub port (for notifications)")
 	var pubsub_channel = flag.String("pubsub-channel", "pubssed", "PubSub channel (for notifications)")
-	var pull = flag.Bool("pull", false, "...")
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
-	var s3 = flag.Bool("s3", false, "...")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
 	var stdout = flag.Bool("stdout", false, "...")
@@ -63,7 +62,9 @@ func main() {
 	logger := log.NewWOFLogger("updated")
 	logger.AddLogger(writer, *loglevel)
 
-	processors := make([]process.Process, 0)
+	processors_pre := make([]process.Process, 0)
+	processors_post := make([]process.Process, 0)
+	processors_async := make([]process.Process, 0)
 
 	/*
 
@@ -73,62 +74,71 @@ func main() {
 
 	*/
 
-	if *pull {
+	for _, name := range strings.Split(*pre_processors, ",") {
 
-		pr, err := process.NewPullProcess(*data_root, logger)
+		if name == "pull" {
+			pr, err := process.NewPullProcess(*data_root, logger)
 
-		if err != nil {
-			golog.Fatal("Failed to instantiate Git hooks processor", err)
+			if err != nil {
+				golog.Fatal("Failed to instantiate Git hooks processor", err)
+			}
+
+			processors_pre = append(processors_pre, pr)
 		}
-
-		processors = append(processors, pr)
 	}
 
-	if *s3 {
+	for _, name := range strings.Split(*processors, ",") {
 
-		pr, err := process.NewS3Process(*data_root, *s3_bucket, *s3_prefix, logger)
+		if name == "s3" {
 
-		if err != nil {
-			golog.Fatal("Failed to instantiate S3 hooks processor", err)
+			pr, err := process.NewS3Process(*data_root, *s3_bucket, *s3_prefix, logger)
+
+			if err != nil {
+				golog.Fatal("Failed to instantiate S3 hooks processor", err)
+			}
+
+			processors_async = append(processors_async, pr)
 		}
 
-		processors = append(processors, pr)
-	}
+		if name == "es" {
 
-	if *es {
+			pr, err := process.NewElasticsearchProcess(*data_root, *es_index_tool, *es_host, *es_port, *es_index, logger)
 
-		pr, err := process.NewElasticsearchProcess(*data_root, *es_index_tool, *es_host, *es_port, *es_index, logger)
+			if err != nil {
+				golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
+			}
 
-		if err != nil {
-			golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
+			processors_async = append(processors_async, pr)
 		}
 
-		processors = append(processors, pr)
-	}
+		if name == "null" {
 
-	if *pubsub {
+			pr, err := process.NewNullProcess(*data_root, logger)
 
-		pr, err := process.NewPubSubProcess(*data_root, *pubsub_host, *pubsub_port, *pubsub_channel, logger)
+			if err != nil {
+				golog.Fatal("Failed to instantiate null hooks processor", err)
+			}
 
-		if err != nil {
-			golog.Fatal("Failed to instantiate PubSub hooks processor", err)
+			processors_async = append(processors_async, pr)
 		}
 
-		processors = append(processors, pr)
 	}
 
-	if *null {
+	for _, name := range strings.Split(*post_processors, ",") {
 
-		pr, err := process.NewNullProcess(*data_root, logger)
+		if name == "pubsub" {
 
-		if err != nil {
-			golog.Fatal("Failed to instantiate null hooks processor", err)
+			pr, err := process.NewPubSubProcess(*data_root, *pubsub_host, *pubsub_port, *pubsub_channel, logger)
+
+			if err != nil {
+				golog.Fatal("Failed to instantiate PubSub hooks processor", err)
+			}
+
+			processors_post = append(processors_post, pr)
 		}
-
-		processors = append(processors, pr)
 	}
 
-	if len(processors) == 0 {
+	if len(processors_pre) == 0 && len(processors_async) == 0 && len(processors_post) == 0 {
 		golog.Fatal("You forgot to specify any processors, silly")
 	}
 
@@ -238,21 +248,30 @@ func main() {
 
 	logger.Info("ready to process tasks")
 
-	for _, pr := range processors {
+	all_processors := [][]process.Process{
+		processors_pre,
+		processors_async,
+		processors_post,
+	}
 
-		go func(pr process.Process) {
+	for _, pr_group := range all_processors {
 
-			buffer := time.Second * 30
+		for _, pr := range pr_group {
 
-			for {
+			go func(pr process.Process) {
 
-				timer := time.NewTimer(buffer)
-				<-timer.C
+				buffer := time.Second * 30
 
-				logger.Info("invoking flush for %s", pr.Name())
-				pr.Flush()
-			}
-		}(pr)
+				for {
+
+					timer := time.NewTimer(buffer)
+					<-timer.C
+
+					logger.Info("invoking flush for %s", pr.Name())
+					pr.Flush()
+				}
+			}(pr)
+		}
 	}
 
 	for {
@@ -260,27 +279,46 @@ func main() {
 		task := <-up_messages
 		logger.Info("got task: %s", task)
 
-		for _, pr := range processors {
+		for _, pr := range processors_pre {
 
 			name := pr.Name()
+			logger.Info("invoking pre-processor %s", name)
 
-			logger.Info("invoking %s", name)
+			err := pr.ProcessTask(task)
 
-			if name == "pull" {
-
-				err := pr.ProcessTask(task)
-
-				if err != nil {
-
-					logger.Error("Failed to complete %s process for task (%s) because: %s", name, task, err)
-					break
-				}
-
-				continue
+			if err != nil {
+				logger.Error("Failed to complete %s process for task (%s) because: %s", name, task, err)
+				break
 			}
 
-			go pr.ProcessTask(task)
 		}
+
+		wg := new(sync.WaitGroup)
+
+		for _, pr := range processors_async {
+
+			name := pr.Name()
+			logger.Info("invoking processor %s", name)
+
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+				pr.ProcessTask(task)
+			}()
+
+		}
+
+		wg.Wait()
+
+		for _, pr := range processors_post {
+
+			name := pr.Name()
+			logger.Info("invoking post-processor %s", name)
+
+			pr.ProcessTask(task)
+		}
+
 	}
 
 	logger.Info("stop")
