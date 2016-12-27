@@ -43,6 +43,8 @@ func (pr *PubSubProcess) Name() string {
 	return "pubsub"
 }
 
+// TO DO: figure out what blocking/flushing means here...
+
 func (pr *PubSubProcess) Flush() error {
 	return nil
 }
