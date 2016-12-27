@@ -1,34 +1,5 @@
 package main
 
-/*
-
-This should still be considered "wet paint" as of 20161222 but something like this:
-
-./bin/wof-updated -pull -s3 -es -es-host es.example.com -es-index spelunker -stdout -loglevel debug -data-root /usr/local/data
-updated 18:48:52.829236 [info] ready to process tasks
-updated 18:48:52.830488 [info] ready to receive pubsub messages
-updated 18:48:52.831441 [info] ready to process pubsub messages
-
-./bin/publish updated x,whosonfirst-data-venue-us-ca,data/110/878/641/1/1108786411.geojson
-updated 18:48:58.333577 [info] got task: {whosonfirst-data-venue-us-ca [data/110/878/641/1/1108786411.geojson]}
-updated 18:48:58.333607 [info] invoking pull
-updated 18:49:10.888423 [debug] Already up-to-date.
-updated 18:49:10.888499 [info] time to process (pull) whosonfirst-data-venue-us-ca: 12.554848051s
-updated 18:49:10.888523 [info] invoking s3
-updated 18:49:10.888545 [info] invoking elasticsearch
-updated 18:49:10.888792 [debug] /usr/local/bin/wof-es-index-filelist --host es.example.com --port 9200 --index spelunker /tmp/updated099706883
-updated 18:49:10.899789 [debug] Schedule /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson for sync
-updated 18:49:10.900059 [debug] Schedule /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson for processing
-updated 18:49:10.900335 [debug] Looking for changes to /data/110/878/641/1/1108786411.geojson (prefix: )
-updated 18:49:10.900494 [debug] HEAD s3://whosonfirst.mapzen.com//data/110/878/641/1/1108786411.geojson
-updated 18:49:11.151795 [debug] Local hash is 48fa97d0b9924b0d03bd88de182a6623 remote hash is 48fa97d0b9924b0d03bd88de182a6623
-updated 18:49:11.152005 [debug] /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson has not changed, skipping
-updated 18:49:11.152146 [debug] Completed sync for /usr/local/data/whosonfirst-data-venue-us-ca/data/110/878/641/1/1108786411.geojson
-updated 18:49:11.152397 [info] time to process (s3) whosonfirst-data-venue-us-ca: 262.075848ms
-updated 18:49:12.175761 [info] time to process (elasticsearch) whosonfirst-data-venue-us-ca: 1.287165453s
-
-*/
-
 import (
 	"encoding/csv"
 	"flag"
@@ -55,6 +26,10 @@ func main() {
 	var logfile = flag.String("logfile", "", "Write logging information to this file")
 	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
 	var null = flag.Bool("null", false, "...")
+	var pubsub = flag.Bool("pubsub", false, "...")
+	var pubsub_host = flag.String("pubsub-host", "localhost", "PubSub host (for notifications)")
+	var pubsub_port = flag.Int("pubsub-port", 6379, "PubSub port (for notifications)")
+	var pubsub_channel = flag.String("pubsub-channel", "pubssed", "PubSub channel (for notifications)")
 	var pull = flag.Bool("pull", false, "...")
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
@@ -126,6 +101,17 @@ func main() {
 
 		if err != nil {
 			golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
+		}
+
+		processors = append(processors, pr)
+	}
+
+	if *pubsub {
+
+		pr, err := process.NewPubSubProcess(*data_root, *pubsub_host, *pubsub_port, *pubsub_channel, logger)
+
+		if err != nil {
+			golog.Fatal("Failed to instantiate PubSub hooks processor", err)
 		}
 
 		processors = append(processors, pr)
