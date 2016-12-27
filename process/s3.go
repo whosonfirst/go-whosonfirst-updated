@@ -194,8 +194,6 @@ func (pr *S3Process) _process(repo string) error {
 
 	/* end of sudo wrap all of this in a single function somewhere... */
 
-	defer os.Remove(tmpfile.Name())
-
 	debug := false
 	procs := 10
 
@@ -206,9 +204,12 @@ func (pr *S3Process) _process(repo string) error {
 	err = sink.SyncFileList(tmpfile.Name(), root)
 
 	if err != nil {
-		pr.logger.Error("Failed to sync file list because %s", err)
+		pr.logger.Error("Failed to process (S3) file list because %s (%s)", err, tmpfile.Name())
 		return err
 	}
+
+	pr.logger.Debug("Successfully processed (S3) file list %s", tmpfile.Name())
+	os.Remove(tmpfile.Name())
 
 	return nil
 }

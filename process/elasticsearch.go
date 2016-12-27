@@ -132,6 +132,7 @@ func (pr *ElasticsearchProcess) ProcessTask(task updated.UpdateTask) error {
 func (pr *ElasticsearchProcess) ProcessRepo(repo string) error {
 
 	if pr.queue.IsProcessing(repo) {
+
 		return pr.queue.Schedule(repo)
 	}
 
@@ -209,8 +210,6 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	/* end of sudo wrap all of this in a single function somewhere... */
 
-	defer os.Remove(tmpfile.Name())
-
 	pr.logger.Debug("Process (ES) file list %s", tmpfile.Name())
 
 	// please write me in Go... (20161222/thisisaaronland)
@@ -229,9 +228,12 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 	_, err = cmd.Output()
 
 	if err != nil {
-		pr.logger.Error("failed to index Elasticsearch %s", err)
+		pr.logger.Error("failed to index Elasticsearch %s (%s %s)", err, pr.index_tool, strings.Join(index_args, " "))
 		return err
 	}
+
+	pr.logger.Debug("Successfully processed (ES) file list %s", tmpfile.Name())
+	os.Remove(tmpfile.Name())
 
 	return nil
 }

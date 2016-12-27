@@ -317,10 +317,10 @@ func main() {
 
 			wg.Add(1)
 
-			go func() {
+			go func(pr process.Process, wg *sync.WaitGroup) {
 				defer wg.Done()
 				pr.ProcessTask(task)
-			}()
+			}(pr, wg)
 
 		}
 
