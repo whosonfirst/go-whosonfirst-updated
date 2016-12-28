@@ -44,6 +44,8 @@ func main() {
 	// I wish this wasn't necessary. I wish I could make sense of the
 	// libgit2 documentation... (20161222/thisisaaronland)
 
+	// See also: https://github.com/whosonfirst/go-whosonfirst-updated/issues/1
+
 	err = os.Chdir(*repo)
 
 	if err != nil {
