@@ -2,6 +2,10 @@
 
 Mapzen specific packages for handling updates to Who's On First data. If it works for you too that is also excellent.
 
+![](images/wof-updated-2-arch.png)
+
+_Something like this. It's still wet paint..._
+
 ## Important
 
 Too soon. Move along.
