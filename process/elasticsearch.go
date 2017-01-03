@@ -120,7 +120,10 @@ func (pr *ElasticsearchProcess) ProcessTask(task updated.UpdateTask) error {
 	}
 
 	for _, path := range task.Commits {
-		files = append(files, path)
+
+		if strings.HasSuffix(path, ".geojson") {
+			files = append(files, path)
+		}
 	}
 
 	pr.files[repo] = files
@@ -184,6 +187,8 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	delete(pr.files, repo)
 	pr.mu.Unlock()
+
+	pr.logger.Debug("Index files in ES: %s", files)
 
 	tmpfile, err := utils.FilesToFileList(files, root)
 

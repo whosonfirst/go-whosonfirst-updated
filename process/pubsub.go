@@ -6,6 +6,7 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	// "github.com/whosonfirst/go-whosonfirst-updated/queue"
 	"gopkg.in/redis.v1"
+	"strings"
 	// "sync"
 	// "time"
 )
@@ -60,7 +61,9 @@ func (pr *PubSubProcess) ProcessTask(task updated.UpdateTask) error {
 	defer redis_client.Close()
 
 	for _, path := range task.Commits {
-		redis_client.Publish(pr.pubsub_channel, path)
+		if strings.HasSuffix(path, ".geojson") {
+			redis_client.Publish(pr.pubsub_channel, path)
+		}
 	}
 
 	return nil

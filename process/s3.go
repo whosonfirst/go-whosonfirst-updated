@@ -10,6 +10,7 @@ import (
 	"os"
 	_ "os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -105,7 +106,10 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 	}
 
 	for _, path := range task.Commits {
-		files = append(files, path)
+
+		if strings.HasSuffix(path, ".geojson") {
+			files = append(files, path)
+		}
 	}
 
 	pr.files[repo] = files
