@@ -141,14 +141,27 @@ func (pr *PullProcess) _process(repo string) error {
 	git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
 	work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
 
-	git_args := []string{git_dir, work_tree, "pull", "origin", "master"}
+	// git_args := []string{git_dir, work_tree, "pull", "origin", "master"}
+
+	git_args := []string{git_dir, work_tree, "fetch"}
 
 	cmd := exec.Command("git", git_args...)
 
 	out, err := cmd.Output()
 
 	if err != nil {
-		pr.logger.Error("Failed to pull from master: %s (git %s)", err, strings.Join(git_args, " "))
+		pr.logger.Error("Failed to fetch: %s (git %s)", err, strings.Join(git_args, " "))
+		return err
+	}
+
+	git_args = []string{git_dir, work_tree, "merge", "origin/master"}
+
+	cmd = exec.Command("git", git_args...)
+
+	out, err = cmd.Output()
+
+	if err != nil {
+		pr.logger.Error("Failed to merge from origin/master: %s (git %s)", err, strings.Join(git_args, " "))
 		return err
 	}
 
