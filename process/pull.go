@@ -1,7 +1,7 @@
 package process
 
 import (
-	"fmt"
+	_ "fmt"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
@@ -127,25 +127,43 @@ func (pr *PullProcess) _process(repo string) error {
 		pr.logger.Info("Time to process (%s) %s: %v", pr.Name(), repo, t2)
 	}()
 
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		pr.logger.Error("Can't get cwd, because %s", err)
+		return err
+	}
+
 	abs_path := filepath.Join(pr.data_root, repo)
 
-	_, err := os.Stat(abs_path)
+	_, err = os.Stat(abs_path)
 
 	if os.IsNotExist(err) {
 		pr.logger.Error("Can't find repo %s", abs_path)
 		return err
 	}
 
-	dot_git := filepath.Join(abs_path, ".git")
+	err = os.Chdir(abs_path)
 
-	git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
-	work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
+	if err != nil {
+		pr.logger.Error("Can't chdir to %s, because %s", abs_path, err)
+		return err
+	}
 
-	// git_args := []string{git_dir, work_tree, "pull", "origin", "master"}
+	defer os.Chdir(cwd) // make sure we go back to where we came from
 
-	git_args := []string{git_dir, work_tree, "fetch", "origin", "master"}
+	/*
+		dot_git := filepath.Join(abs_path, ".git")
+		git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
+		work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
 
+		git_args := []string{git_dir, work_tree, "fetch", "origin", "master"}
+	*/
+
+	git_args := []string{"fetch", "origin", "master"}
 	cmd := exec.Command("git", git_args...)
+
+	pr.logger.Debug("git %s", strings.Join(git_args, " "))
 
 	out, err := cmd.Output()
 
@@ -154,10 +172,14 @@ func (pr *PullProcess) _process(repo string) error {
 		return err
 	}
 
-	git_args = []string{git_dir, work_tree, "merge", "origin", "master"}
+	/*
+		git_args = []string{git_dir, work_tree, "merge", "origin", "master"}
+	*/
 
+	git_args = []string{"merge", "origin", "master"}
 	cmd = exec.Command("git", git_args...)
 
+	cmd = exec.Command("git", git_args...)
 	out, err = cmd.Output()
 
 	if err != nil {
