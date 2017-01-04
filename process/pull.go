@@ -143,7 +143,7 @@ func (pr *PullProcess) _process(repo string) error {
 
 	// git_args := []string{git_dir, work_tree, "pull", "origin", "master"}
 
-	git_args := []string{git_dir, work_tree, "fetch"}
+	git_args := []string{git_dir, work_tree, "fetch", "origin", "master"}
 
 	cmd := exec.Command("git", git_args...)
 
@@ -154,7 +154,7 @@ func (pr *PullProcess) _process(repo string) error {
 		return err
 	}
 
-	git_args = []string{git_dir, work_tree, "merge", "origin/master"}
+	git_args = []string{git_dir, work_tree, "merge", "origin", "master"}
 
 	cmd = exec.Command("git", git_args...)
 
