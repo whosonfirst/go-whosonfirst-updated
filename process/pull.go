@@ -157,7 +157,7 @@ func (pr *PullProcess) _process(repo string) error {
 	git_args := make([]string, 0)
 	var cmd *exec.Cmd
 
-	git_args = []string{"log", "--pretty=format:'%H'", "-n", "1"}
+	git_args = []string{"log", "--pretty=format:%H", "-n", "1"}
 	cmd = exec.Command("git", git_args...)
 
 	pr.logger.Debug("git %s", strings.Join(git_args, " "))
