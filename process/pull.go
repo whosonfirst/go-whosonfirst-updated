@@ -152,41 +152,65 @@ func (pr *PullProcess) _process(repo string) error {
 
 	defer os.Chdir(cwd) // make sure we go back to where we came from
 
-	/*
-		dot_git := filepath.Join(abs_path, ".git")
-		git_dir := fmt.Sprintf("--git-dir=%s", dot_git)
-		work_tree := fmt.Sprintf("--work-tree=%s", dot_git)
+	//
 
-		git_args := []string{git_dir, work_tree, "fetch", "origin", "master"}
-	*/
+	git_args := make([]string, 0)
+	var cmd *exec.Cmd
 
-	git_args := []string{"fetch", "origin", "master"}
-	cmd := exec.Command("git", git_args...)
+	git_args = []string{"log", "--pretty=format:'%H'", "-n", "1"}
+	cmd = exec.Command("git", git_args...)
 
 	pr.logger.Debug("git %s", strings.Join(git_args, " "))
 
-	out, err := cmd.Output()
+	hash, err := cmd.Output()
+
+	if err != nil {
+		pr.logger.Error("Failed to determine current hash: %s (git %s)", err, strings.Join(git_args, " "))
+		return err
+	}
+
+	pr.logger.Debug("current git hash is %s", hash)
+
+	//
+
+	git_args = []string{"reset", "--hard", string(hash)}
+	cmd = exec.Command("git", git_args...)
+
+	pr.logger.Debug("git %s", strings.Join(git_args, " "))
+
+	_, err = cmd.Output()
+
+	if err != nil {
+		pr.logger.Error("Failed to reset: %s (git %s)", err, strings.Join(git_args, " "))
+		return err
+	}
+
+	//
+
+	git_args = []string{"fetch", "origin", "master"}
+	cmd = exec.Command("git", git_args...)
+
+	pr.logger.Debug("git %s", strings.Join(git_args, " "))
+
+	_, err = cmd.Output()
 
 	if err != nil {
 		pr.logger.Error("Failed to fetch: %s (git %s)", err, strings.Join(git_args, " "))
 		return err
 	}
 
-	/*
-		git_args = []string{git_dir, work_tree, "merge", "origin", "master"}
-	*/
+	//
 
 	git_args = []string{"merge", "origin", "master"}
 	cmd = exec.Command("git", git_args...)
 
 	cmd = exec.Command("git", git_args...)
-	out, err = cmd.Output()
+	_, err = cmd.Output()
 
 	if err != nil {
 		pr.logger.Error("Failed to merge from origin/master: %s (git %s)", err, strings.Join(git_args, " "))
 		return err
 	}
 
-	pr.logger.Debug("Successfully pulled from master (%s)", out)
 	return nil
 }
