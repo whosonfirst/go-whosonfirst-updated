@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	// "github.com/whosonfirst/go-slackcat-writer"
+	"github.com/whosonfirst/go-slackcat-writer"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/process"
@@ -24,8 +24,11 @@ func main() {
 	var es_port = flag.String("es-port", "9200", "")
 	var es_index = flag.String("es-index", "whosonfirst", "")
 	var es_index_tool = flag.String("es-index-tool", "/usr/local/bin/wof-es-index-filelist", "")
-	var logfile = flag.String("logfile", "", "Write logging information to this file")
-	var loglevel = flag.String("loglevel", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var log_file = flag.String("log-file", "", "Write logging information to this file")
+	var log_level = flag.String("log-level", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var log_slack = flag.Bool("log-slack", false, "...")
+	var log_slack_conf = flag.String("log-slack-conf", "", "...")
+	var log_slack_level = flag.String("log-slack-level", "", "status")
 	var processors = flag.String("processors", "", "Valid options include: es,null,s3")
 	var post_processors = flag.String("post-processors", "", "Valid options include: pubsub")
 	var pre_processors = flag.String("pre-processors", "", "Valid options include: pull")
@@ -47,9 +50,9 @@ func main() {
 		writers = append(writers, os.Stdout)
 	}
 
-	if *logfile != "" {
+	if *log_file != "" {
 
-		fh, err := os.OpenFile(*logfile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+		fh, err := os.OpenFile(*log_file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
 
 		if err != nil {
 			golog.Fatal(err)
@@ -61,21 +64,18 @@ func main() {
 	writer := io.MultiWriter(writers...)
 
 	logger := log.NewWOFLogger("updated")
-	logger.AddLogger(writer, *loglevel)
+	logger.AddLogger(writer, *log_level)
 
-	/*
+	if *log_slack {
 
-		if *slack {
+		slack_logger, err := slackcat.NewWriter(*log_slack_conf)
 
-		   	slack_logger, err := slackcat.NewWriter(*slackcat_conf)
-
-			if err != nil {
-				golog.Fatal(err)
-			}
-
-			logger.AddLogger(slack_logger, "status")
+		if err != nil {
+			golog.Fatal(err)
 		}
-	*/
+
+		logger.AddLogger(slack_logger, *log_slack_level)
+	}
 
 	processors_pre := make([]process.Process, 0)
 	processors_post := make([]process.Process, 0)
