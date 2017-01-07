@@ -154,6 +154,9 @@ func (pr *PullProcess) _process(repo string) error {
 
 	//
 
+	var ta time.Time
+	var tb time.Duration
+
 	git_args := make([]string, 0)
 	var cmd *exec.Cmd
 
@@ -162,7 +165,12 @@ func (pr *PullProcess) _process(repo string) error {
 
 	pr.logger.Debug("git %s", strings.Join(git_args, " "))
 
+	ta = time.Now()
+
 	hash, err := cmd.Output()
+
+	tb = time.Since(ta)
+	pr.logger.Debug("Time to determine current hash: %v", tb)
 
 	if err != nil {
 		pr.logger.Error("Failed to determine current hash: %s (git %s)", err, strings.Join(git_args, " "))
@@ -178,7 +186,12 @@ func (pr *PullProcess) _process(repo string) error {
 
 	pr.logger.Debug("git %s", strings.Join(git_args, " "))
 
+	ta = time.Now()
+
 	_, err = cmd.Output()
+
+	tb = time.Since(ta)
+	pr.logger.Debug("Time to reset: %v", tb)
 
 	if err != nil {
 		pr.logger.Error("Failed to reset: %s (git %s)", err, strings.Join(git_args, " "))
@@ -192,7 +205,11 @@ func (pr *PullProcess) _process(repo string) error {
 
 	pr.logger.Debug("git %s", strings.Join(git_args, " "))
 
+	ta = time.Now()
 	_, err = cmd.Output()
+
+	tb = time.Since(ta)
+	pr.logger.Debug("Time to fetch origin: %v", tb)
 
 	if err != nil {
 		pr.logger.Error("Failed to fetch: %s (git %s)", err, strings.Join(git_args, " "))
@@ -204,8 +221,13 @@ func (pr *PullProcess) _process(repo string) error {
 	git_args = []string{"merge", "origin", "master"}
 	cmd = exec.Command("git", git_args...)
 
-	cmd = exec.Command("git", git_args...)
+	pr.logger.Debug("git %s", strings.Join(git_args, " "))
+
+	ta = time.Now()
 	_, err = cmd.Output()
+
+	tb = time.Since(ta)
+	pr.logger.Debug("Time to merge origin: %v", tb)
 
 	if err != nil {
 		pr.logger.Error("Failed to merge from origin/master: %s (git %s)", err, strings.Join(git_args, " "))

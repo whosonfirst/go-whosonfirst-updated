@@ -17,15 +17,15 @@ import (
 
 func main() {
 
-	var dryrun = flag.Bool("dryrun", false, "...")
+	var dryrun = flag.Bool("dryrun", false, "Just show which files would be updated but don't actually do anything.")
 
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
 
-	var repo = flag.String("repo", "", "...")
-	var start_commit = flag.String("start-commit", "", "...")
-	var stop_commit = flag.String("stop-commit", "", "...")
+	var repo = flag.String("repo", "", "The path to a valid Who's On First repo to run updates from")
+	var start_commit = flag.String("start-commit", "", "A valid Git commit hash to start updates from. If empty then the current hash will be used.")
+	var stop_commit = flag.String("stop-commit", "HEAD", "A valid Git commit hash to limit updates to.")
 
 	flag.Parse()
 
@@ -54,22 +54,31 @@ func main() {
 
 	// https://git-scm.com/docs/git-diff
 
+	if *start_commit == "" {
+
+		git_args := []string{
+			"log", "--pretty=format:%H", "-n", "1",
+		}
+
+		log.Println(strings.Join(git_args, " "))
+
+		cmd := exec.Command("git", git_args...)
+		hash, err := cmd.Output()
+
+		if err != nil {
+			log.Fatal("Can not determined start hash for %s", *repo)
+		}
+
+		log.Printf("Current hash %s\n", hash)
+		*start_commit = string(hash)
+	}
+
 	git_args := []string{
-		// "diff", "--pretty=format:", "--name-only",
 		"log", "--pretty=format:#%H", "--name-only",
 	}
 
-	if *start_commit != "" {
-
-		stop := "HEAD"
-
-		if *stop_commit != "" {
-			stop = *stop_commit
-		}
-
-		commit_range := fmt.Sprintf("%s^...%s", *start_commit, stop)
-		git_args = append(git_args, commit_range)
-	}
+	commit_range := fmt.Sprintf("%s^...%s", *start_commit, *stop_commit)
+	git_args = append(git_args, commit_range)
 
 	log.Println(strings.Join(git_args, " "))
 
