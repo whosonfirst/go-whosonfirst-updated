@@ -289,7 +289,7 @@ func main() {
 					timer := time.NewTimer(buffer)
 					<-timer.C
 
-					logger.Debug("Invoking flush for %s", pr.Name())
+					// logger.Debug("Invoking flush for %s", pr.Name())
 					pr.Flush()
 				}
 			}(pr)
