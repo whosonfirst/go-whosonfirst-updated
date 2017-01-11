@@ -153,7 +153,7 @@ func (pr *S3Process) _process(repo string) error {
 
 	defer func() {
 		t2 := time.Since(t1)
-		pr.logger.Info("Time to process (%s) %s: %v", pr.Name(), repo, t2)
+		pr.logger.Status("Time to process (%s) %s: %v", pr.Name(), repo, t2)
 	}()
 
 	root := filepath.Join(pr.data_root, repo)
