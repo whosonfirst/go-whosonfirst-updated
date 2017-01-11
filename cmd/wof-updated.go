@@ -77,6 +77,8 @@ func main() {
 		logger.AddLogger(slack_logger, *log_slack_level)
 	}
 
+	logger.Status("Starting up wof-updated")
+
 	processors_pre := make([]process.Process, 0)
 	processors_post := make([]process.Process, 0)
 	processors_async := make([]process.Process, 0)
