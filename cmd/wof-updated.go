@@ -130,6 +130,17 @@ func main() {
 			processors_async = append(processors_async, pr)
 		}
 
+		if name == "lfs" {
+
+			pr, err := process.NewLFSProcess(*data_root, logger)
+
+			if err != nil {
+				golog.Fatal("Failed to instantiate LFS hooks processor", err)
+			}
+
+			processors_async = append(processors_async, pr)
+		}
+
 		if name == "null" {
 
 			pr, err := process.NewNullProcess(*data_root, logger)
