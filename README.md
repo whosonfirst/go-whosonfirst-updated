@@ -57,6 +57,8 @@ updated 18:52:53.110232 [info] invoking elasticsearch
 ... and so on
 ```
 
+![](images/wof-updated-slack.png)
+
 ## See also
 
 * https://github.com/whosonfirst/go-webhookd
