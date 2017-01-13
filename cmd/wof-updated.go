@@ -312,7 +312,7 @@ func main() {
 	for {
 
 		task := <-up_messages
-		logger.Info("Processing task: %s", task)
+		logger.Status("Processing commit %s (%s)", task.Hash, task.Repo)
 
 		ok_pre := true
 
