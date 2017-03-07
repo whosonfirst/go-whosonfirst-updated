@@ -1,17 +1,21 @@
 package process
 
 import (
+	"errors"
 	"github.com/whosonfirst/go-whosonfirst-log"
+	"github.com/whosonfirst/go-whosonfirst-tile38/client"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
-	"github.com/whosonfirst/go-whosonfirst-updated/utils"
-	"github.com/whosonfirst/go-whosonfirst-uri"	
+	// "github.com/whosonfirst/go-whosonfirst-updated/utils"
+	"github.com/whosonfirst/go-whosonfirst-uri"
+	"sync"
 )
 
 type Tile38Process struct {
 	Process
-	client     *index.Tile38Client
+	queue      *queue.Queue
+	client     *index.Tile38Indexer
 	data_root  string
 	flushing   bool
 	mu         *sync.Mutex
@@ -20,13 +24,15 @@ type Tile38Process struct {
 	logger     *log.WOFLogger
 }
 
-func NewTile38Process(tile38_host string, tile38_port int, tile38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
+func NewTile38Process(t38_host string, t38_port int, t38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
 
-	client, err := tile38.NewTile38Client(*tile38_host, *tile38_port)
+	t38_client, err := client.NewRESPClient(t38_host, t38_port)
 
 	if err != nil {
 		return nil, err
 	}
+
+	t38_indexer, err := index.NewTile38Indexer(t38_client)
 
 	q, err := queue.NewQueue()
 
@@ -39,8 +45,8 @@ func NewTile38Process(tile38_host string, tile38_port int, tile38_collection str
 	mu := new(sync.Mutex)
 
 	pr := Tile38Process{
-		client:     client,
-		collection: collection,
+		client:     t38_indexer,
+		collection: t38_collection,
 		queue:      q,
 		flushing:   false,
 		mu:         mu,
@@ -93,14 +99,18 @@ func (pr *Tile38Process) ProcessTask(task updated.UpdateTask) error {
 
 	for _, path := range task.Commits {
 
-		if ! uri.IsWOFFile(path){
-		   continue
+		is_wof, _ := uri.IsWOFFile(path)
+
+		if !is_wof {
+			continue
 		}
-		
-		if uri.IsAltFile(path){
-			continue			
+
+		is_alt, _ := uri.IsAltFile(path)
+
+		if is_alt {
+			continue
 		}
-		
+
 		files = append(files, path)
 	}
 
@@ -143,5 +153,7 @@ func (pr *Tile38Process) ProcessRepo(repo string) error {
 
 func (pr *Tile38Process) _process(repo string) error {
 
-	pr.client.IndexFile(path, pr.collection)
+	// pr.client.IndexFile(path, pr.collection)
+
+	return errors.New("PLEASE WRITE ME")
 }
