@@ -93,13 +93,15 @@ func (pr *Tile38Process) ProcessTask(task updated.UpdateTask) error {
 
 	for _, path := range task.Commits {
 
-		if ! uri.IsAltFile(path){
+		if ! uri.IsWOFFile(path){
+		   continue
+		}
+		
+		if uri.IsAltFile(path){
 			continue			
 		}
 		
-		if strings.HasSuffix(path, ".geojson") {
-			files = append(files, path)
-		}
+		files = append(files, path)
 	}
 
 	pr.files[repo] = files
