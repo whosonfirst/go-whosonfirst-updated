@@ -1,15 +1,16 @@
-package tile38
+package index
 
 import (
 	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
 	"github.com/whosonfirst/go-whosonfirst-crawl"
 	"github.com/whosonfirst/go-whosonfirst-csv"
 	"github.com/whosonfirst/go-whosonfirst-geojson"
 	"github.com/whosonfirst/go-whosonfirst-placetypes"
+	"github.com/whosonfirst/go-whosonfirst-tile38"
+	"github.com/whosonfirst/go-whosonfirst-tile38/util"
 	"io"
 	"log"
 	"os"
@@ -17,13 +18,13 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
-	"time"
 )
 
 type Meta struct {
-	Name      string           `json:"wof:name"`
-	Country   string           `json:"wof:country"`
+	Name    string `json:"wof:name"`
+	Country string `json:"wof:country"`
 	// Hierarchy []map[string]int `json:"wof:hierarchy"`
 }
 
@@ -41,81 +42,25 @@ type GeometryPoly struct {
 	Coordinates []Polygon `json:"coordinates"`
 }
 
-type Tile38Client struct {
-	Endpoint   string
-	Geometry   string
-	Placetypes *placetypes.WOFPlacetypes
-	Debug      bool
-	Verbose    bool
-	pool       *redis.Pool
+type Tile38Indexer struct {
+	Geometry string
+	Debug    bool
+	Verbose  bool
+	client   tile38.Tile38Client
 }
 
-func NewTile38Client(host string, port int) (*Tile38Client, error) {
+func NewTile38Indexer(client tile38.Tile38Client) (*Tile38Indexer, error) {
 
-	pt, err := placetypes.Init()
-
-	if err != nil {
-		return nil, err
+	idx := Tile38Indexer{
+		Geometry: "", // use the default geojson geometry
+		Debug:    false,
+		client:   client,
 	}
 
-	endpoint := fmt.Sprintf("%s:%d", host, port)
-
-	// because this:
-	// https://github.com/whosonfirst/go-whosonfirst-tile38/issues/8
-
-	tries := 0
-	max_tries := 5
-
-	for tries < max_tries {
-
-		tries += 1
-
-		conn, err := redis.Dial("tcp", endpoint)
-
-		if err != nil {
-			time.Sleep(time.Second * 1)
-			continue
-		}
-
-		defer conn.Close()
-
-		_, err = conn.Do("PING")
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	// https://stackoverflow.com/questions/37828284/redigo-getting-dial-tcp-connect-cannot-assign-requested-address
-	// https://godoc.org/github.com/garyburd/redigo/redis#NewPool
-
-	pool := &redis.Pool{
-		MaxActive: 1000,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", endpoint)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-	}
-
-	client := Tile38Client{
-		Endpoint:   endpoint,
-		Placetypes: pt,
-		Geometry:   "", // use the default geojson geometry
-		Debug:      false,
-		pool:       pool,
-	}
-
-	return &client, nil
+	return &idx, nil
 }
 
-func (client *Tile38Client) IndexFile(abs_path string, collection string) error {
+func (idx *Tile38Indexer) IndexFile(abs_path string, collection string) error {
 
 	// check to see if this is an alt file
 	// https://github.com/whosonfirst/go-whosonfirst-tile38/issues/1
@@ -126,24 +71,26 @@ func (client *Tile38Client) IndexFile(abs_path string, collection string) error 
 		return err
 	}
 
-	return client.IndexFeature(feature, collection)
+	return idx.IndexFeature(feature, collection)
 }
 
-func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection string) error {
+func (idx *Tile38Indexer) IndexFeature(feature *geojson.WOFFeature, collection string) error {
 
 	wofid := feature.Id()
 	str_wofid := strconv.Itoa(wofid)
+
+	placetype := feature.Placetype()
 
 	body := feature.Body()
 
 	var str_geom string
 
-	if client.Geometry == "" {
+	if idx.Geometry == "" {
 
 		geom := body.Path("geometry")
 		str_geom = geom.String()
 
-	} else if client.Geometry == "bbox" {
+	} else if idx.Geometry == "bbox" {
 
 		/*
 
@@ -193,7 +140,7 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 
 		str_geom = string(bytes)
 
-	} else if client.Geometry == "centroid" {
+	} else if idx.Geometry == "centroid" {
 
 		// sudo put me in go-whosonfirst-geojson?
 		// (20160829/thisisaaronland)
@@ -236,14 +183,7 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 		return errors.New("unknown geometry filter")
 	}
 
-	conn := client.pool.Get()
-	defer conn.Close()
-
-	// log.Println("number of active connections", client.pool.ActiveCount())
-
-	placetype := feature.Placetype()
-
-	pt, err := client.Placetypes.GetPlacetypeByName(placetype)
+	pt, err := placetypes.GetPlacetypeByName(placetype)
 
 	if err != nil {
 		return err
@@ -296,32 +236,35 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 		is_superseded = 1
 	}
 
-	/*
-
-		The conn.Do method takes a string command and then a "..." of interface{} thingies
-		but unfortunately I don't know how to define the latter as a []interface{} and then
-		pass that list in so that the compiler thinks they are "..." -able. Good times...
-		(20160804/thisisaaronland)
-
-		FIELDS are really only good for numeric things that you want to query with a range or that
-		you want/need to include with every response item (like wof:id)
-		(20160807/thisisaaronland)
-
-	*/
-
-	if client.Verbose {
-
-		if client.Geometry == "" {
-			log.Println("SET", collection, key, "FIELD", "wof:id", wofid, "FIELD", "wof:placetype_id", pt.Id, "FIELD", "wof:parent_id", parent, "FIELD", "wof:is_superseded", is_superseded, "FIELD", "wof:is_deprecated", is_deprecated, "OBJECT", "...")
-		} else {
-			log.Println("SET", collection, key, "FIELD", "wof:id", wofid, "FIELD", "wof:placetype_id", pt.Id, "FIELD", "wof:parent_id", parent, "FIELD", "wof:is_superseded", is_superseded, "FIELD", "wof:is_deprecated", is_deprecated, "OBJECT", str_geom)
-		}
-
+	set_cmd := []string{
+		"SET", collection, key,
+		"FIELD", "wof:id", strconv.Itoa(wofid),
+		"FIELD", "wof:placetype_id", strconv.FormatInt(pt.Id, 10),
+		"FIELD", "wof:parent_id", strconv.Itoa(parent),
+		"FIELD", "wof:is_superseded", strconv.Itoa(is_superseded),
+		"FIELD", "wof:is_deprecated", strconv.Itoa(is_deprecated),
+		"OBJECT", str_geom,
 	}
 
-	if !client.Debug {
+	if idx.Verbose {
 
-		_, err := conn.Do("SET", collection, key, "FIELD", "wof:id", wofid, "FIELD", "wof:placetype_id", pt.Id, "FIELD", "wof:parent_id", parent, "FIELD", "wof:is_superseded", is_superseded, "FIELD", "wof:is_deprecated", is_deprecated, "OBJECT", str_geom)
+		// make a copy in case we don't want to print out the entire geom
+		// and we're not running in debug mode in which case we'll, you
+		// know... need the geom (20170305/thisisaaronland)
+
+		set_cmd_copy := set_cmd
+
+		if idx.Geometry == "" {
+			set_cmd_copy[len(set_cmd_copy)-1] = "..."
+		}
+
+		log.Println(strings.Join(set_cmd_copy, " "))
+	}
+
+	if !idx.Debug {
+
+		t38_cmd, t38_args := util.ListToRESPCommand(set_cmd)
+		_, err := idx.client.Do(t38_cmd, t38_args...)
 
 		if err != nil {
 			return err
@@ -344,8 +287,8 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 	// hier := feature.Hierarchy()
 
 	meta := Meta{
-		Name:      name,
-		Country:   country,
+		Name:    name,
+		Country: country,
 		// Hierarchy: hier,
 	}
 
@@ -360,13 +303,20 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 	// information? We may not always do that (maybe should never do that) but today we do do
 	// that... (20161017/thisisaaronland)
 
-	if client.Verbose {
-		log.Println("SET", collection, meta_key, "STRING", string(meta_json))
+	meta_cmd := []string{
+		"SET", collection, meta_key,
+		"STRING", string(meta_json),
 	}
 
-	if !client.Debug {
+	if idx.Verbose {
+		log.Println(strings.Join(meta_cmd, " "))
+	}
 
-		_, err := conn.Do("SET", collection, meta_key, "STRING", string(meta_json))
+	if !idx.Debug {
+
+		t38_cmd, t38_args := util.ListToRESPCommand(meta_cmd)
+
+		_, err := idx.client.Do(t38_cmd, t38_args...)
 
 		if err != nil {
 			log.Printf("FAILED to set meta on %s because, %v\n", meta_key, err)
@@ -374,7 +324,7 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 		}
 	}
 
-	if client.Verbose {
+	if idx.Verbose {
 		log.Println("OKAY", key, meta_key)
 	}
 
@@ -382,7 +332,7 @@ func (client *Tile38Client) IndexFeature(feature *geojson.WOFFeature, collection
 
 }
 
-func (client *Tile38Client) IndexMetaFile(csv_path string, collection string, data_root string) error {
+func (idx *Tile38Indexer) IndexMetaFile(csv_path string, collection string, data_root string) error {
 
 	reader, err := csv.NewDictReaderFromPath(csv_path)
 
@@ -432,7 +382,7 @@ func (client *Tile38Client) IndexMetaFile(csv_path string, collection string, da
 				ch <- true
 			}()
 
-			client.IndexFile(abs_path, collection)
+			idx.IndexFile(abs_path, collection)
 
 		}(ch)
 	}
@@ -442,7 +392,7 @@ func (client *Tile38Client) IndexMetaFile(csv_path string, collection string, da
 	return nil
 }
 
-func (client *Tile38Client) IndexDirectory(abs_path string, collection string, nfs_kludge bool) error {
+func (idx *Tile38Indexer) IndexDirectory(abs_path string, collection string, nfs_kludge bool) error {
 
 	re_wof, _ := regexp.Compile(`(\d+)\.geojson$`)
 
@@ -458,7 +408,7 @@ func (client *Tile38Client) IndexDirectory(abs_path string, collection string, n
 			return nil
 		}
 
-		err := client.IndexFile(abs_path, collection)
+		err := idx.IndexFile(abs_path, collection)
 
 		if err != nil {
 			msg := fmt.Sprintf("failed to index %s, because %v", abs_path, err)
@@ -474,7 +424,7 @@ func (client *Tile38Client) IndexDirectory(abs_path string, collection string, n
 	return c.Crawl(cb)
 }
 
-func (client *Tile38Client) IndexFileList(abs_path string, collection string) error {
+func (idx *Tile38Indexer) IndexFileList(abs_path string, collection string) error {
 
 	file, err := os.Open(abs_path)
 
@@ -509,7 +459,7 @@ func (client *Tile38Client) IndexFileList(abs_path string, collection string) er
 
 			defer wg.Done()
 
-			client.IndexFile(path, collection)
+			idx.IndexFile(path, collection)
 			ch <- true
 
 		}(path, collection, wg, ch)

@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"github.com/whosonfirst/go-whosonfirst-tile38/client"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
-	// "github.com/whosonfirst/go-whosonfirst-tile38/simple"
 	"log"
 	"os"
 	"runtime"
@@ -15,12 +15,12 @@ func main() {
 	mode := flag.String("mode", "files", "The mode to use importing data. Valid options are: directory, filelist and files.")
 	geom := flag.String("geometry", "", "Which geometry to index. Valid options are: centroid, bbox or whatever is in the default GeoJSON geometry (default).")
 
-	procs := flag.Int("procs", 200, "The number of concurrent processes to use importing data.")
-	collection := flag.String("collection", "", "The name of the Tile38 collection for indexing data.")
+	procs := flag.Int("procs", runtime.NumCPU()*2, "The number of concurrent processes to use importing data.")
 	nfs_kludge := flag.Bool("nfs-kludge", false, "Enable the (walk.go) NFS kludge to ignore 'readdirent: errno' 523 errors")
 
-	tile38_host := flag.String("tile38-host", "localhost", "The host of your Tile-38 server.")
-	tile38_port := flag.Int("tile38-port", 9851, "The port of your Tile38 server.")
+	t38_host := flag.String("tile38-host", "localhost", "The address your Tile38 server is bound to.")
+	t38_port := flag.Int("tile38-port", 9851, "The port number your Tile38 server is bound to.")
+	t38_collection := flag.String("tile38-collection", "", "The name of the Tile38 collection for indexing data.")
 
 	verbose := flag.Bool("verbose", false, "Be chatty about what's happening. This is automatically enabled if the -debug flag is set.")
 	debug := flag.Bool("debug", false, "Go through all the motions but don't actually index anything.")
@@ -33,15 +33,17 @@ func main() {
 
 	runtime.GOMAXPROCS(*procs)
 
-	client, err := tile38.NewTile38Client(*tile38_host, *tile38_port)
+	t38_client, err := client.NewRESPClient(*t38_host, *t38_port)
 
 	if err != nil {
-		log.Fatalf("failed to create Tile38Client (%s:%d) because %v", *tile38_host, *tile38_port, err)
+		log.Fatalf("failed to create Tile38Client (%s:%d) because %v", *t38_host, *t38_port, err)
 	}
 
-	client.Verbose = *verbose
-	client.Debug = *debug
-	client.Geometry = *geom
+	indexer, err := index.NewTile38Indexer(t38_client)
+
+	indexer.Verbose = *verbose
+	indexer.Debug = *debug
+	indexer.Geometry = *geom
 
 	args := flag.Args()
 
@@ -49,11 +51,11 @@ func main() {
 
 		if *mode == "directory" {
 
-			err = client.IndexDirectory(path, *collection, *nfs_kludge)
+			err = indexer.IndexDirectory(path, *t38_collection, *nfs_kludge)
 
 		} else if *mode == "filelist" {
 
-			err = client.IndexFileList(path, *collection)
+			err = indexer.IndexFileList(path, *t38_collection)
 
 		} else if *mode == "meta" {
 
@@ -75,10 +77,10 @@ func main() {
 			meta_file := parts[0]
 			data_root := parts[1]
 
-			err = client.IndexMetaFile(meta_file, *collection, data_root)
+			err = indexer.IndexMetaFile(meta_file, *t38_collection, data_root)
 
 		} else {
-			err = client.IndexFile(path, *collection)
+			err = indexer.IndexFile(path, *t38_collection)
 		}
 
 		if err != nil {

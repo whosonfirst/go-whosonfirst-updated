@@ -12,6 +12,11 @@ self:   prep rmdeps
 	cp -r queue src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r utils src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r vendor/src/* src/
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/garyburd src/github.com
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/whosonfirst/go-whosonfirst-geojson src/github.com/whosonfirst/
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/whosonfirst/go-whosonfirst-placetypes src/github.com/whosonfirst/
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/dhconnelly src/github.com/
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/kellydunn src/github.com/
 
 rmdeps:
 	if test -d src; then rm -rf src; fi 
