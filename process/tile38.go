@@ -7,8 +7,10 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
-	// "github.com/whosonfirst/go-whosonfirst-updated/utils"
+	"github.com/whosonfirst/go-whosonfirst-updated/utils"
 	"github.com/whosonfirst/go-whosonfirst-uri"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -156,4 +158,57 @@ func (pr *Tile38Process) _process(repo string) error {
 	// pr.client.IndexFile(path, pr.collection)
 
 	return errors.New("PLEASE WRITE ME")
+
+	root := filepath.Join(pr.data_root, repo)
+
+	_, err := os.Stat(root)
+
+	if os.IsNotExist(err) {
+		pr.logger.Error("Can't find repo", root)
+		return err
+	}
+
+	/* sudo wrap all of this in a single function somewhere... */
+
+	pr.mu.Lock()
+	files := pr.files[repo]
+
+	delete(pr.files, repo)
+	pr.mu.Unlock()
+
+	tmpfile, err := utils.FilesToFileList(files, root)
+
+	if err != nil {
+
+		pr.mu.Lock()
+
+		_, ok := pr.files[repo]
+
+		if ok {
+
+			for _, path := range files {
+				pr.files[repo] = append(pr.files[repo], path)
+			}
+
+		} else {
+			pr.files[repo] = files
+		}
+
+		pr.mu.Unlock()
+
+		return err
+	}
+
+	err = pr.client.IndexFileList(tmpfile.Name(), pr.collection)
+
+	if err != nil {
+		pr.logger.Error("Failed to process (Tile38) file list because %s (%s)", err, tmpfile.Name())
+		return err
+	}
+
+	pr.logger.Debug("Successfully processed (Tile38) file list %s", tmpfile.Name())
+	os.Remove(tmpfile.Name())
+
+	return nil
+
 }
