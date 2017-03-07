@@ -6,6 +6,7 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
 	"github.com/whosonfirst/go-whosonfirst-updated/utils"
+	"github.com/whosonfirst/go-whosonfirst-uri"	
 )
 
 type Tile38Process struct {
@@ -92,6 +93,10 @@ func (pr *Tile38Process) ProcessTask(task updated.UpdateTask) error {
 
 	for _, path := range task.Commits {
 
+		if ! uri.IsAltFile(path){
+			continue			
+		}
+		
 		if strings.HasSuffix(path, ".geojson") {
 			files = append(files, path)
 		}
