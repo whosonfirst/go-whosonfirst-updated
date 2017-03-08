@@ -1,7 +1,6 @@
 package process
 
 import (
-	"errors"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-tile38/client"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
@@ -17,7 +16,7 @@ import (
 type Tile38Process struct {
 	Process
 	queue      *queue.Queue
-	client     *index.Tile38Indexer
+	indexer    *index.Tile38Indexer
 	data_root  string
 	flushing   bool
 	mu         *sync.Mutex
@@ -26,7 +25,19 @@ type Tile38Process struct {
 	logger     *log.WOFLogger
 }
 
-func NewTile38Process(t38_host string, t38_port int, t38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
+func NewTile38Process(data_root string, t38_host string, t38_port int, t38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
+
+	data_root, err := filepath.Abs(data_root)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = os.Stat(data_root)
+
+	if os.IsNotExist(err) {
+		return nil, err
+	}
 
 	t38_client, err := client.NewRESPClient(t38_host, t38_port)
 
@@ -47,7 +58,8 @@ func NewTile38Process(t38_host string, t38_port int, t38_collection string, logg
 	mu := new(sync.Mutex)
 
 	pr := Tile38Process{
-		client:     t38_indexer,
+		indexer:    t38_indexer,
+		data_root:  data_root,
 		collection: t38_collection,
 		queue:      q,
 		flushing:   false,
@@ -155,10 +167,6 @@ func (pr *Tile38Process) ProcessRepo(repo string) error {
 
 func (pr *Tile38Process) _process(repo string) error {
 
-	// pr.client.IndexFile(path, pr.collection)
-
-	return errors.New("PLEASE WRITE ME")
-
 	root := filepath.Join(pr.data_root, repo)
 
 	_, err := os.Stat(root)
@@ -199,7 +207,7 @@ func (pr *Tile38Process) _process(repo string) error {
 		return err
 	}
 
-	err = pr.client.IndexFileList(tmpfile.Name(), pr.collection)
+	err = pr.indexer.IndexFileList(tmpfile.Name(), pr.collection)
 
 	if err != nil {
 		pr.logger.Error("Failed to process (Tile38) file list because %s (%s)", err, tmpfile.Name())

@@ -38,6 +38,9 @@ func main() {
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
+	var t38_host = flag.String("tile38-host", "localhost", "Til38 host")
+	var t38_port = flag.Int("tile38-port", 9851, "Tile38 port")
+	var t38_collection = flag.String("tile38-collection", "", "Tile38 collection")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
 	var stdout = flag.Bool("stdout", false, "...")
@@ -127,6 +130,17 @@ func main() {
 
 			if err != nil {
 				golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
+			}
+
+			processors_async = append(processors_async, pr)
+		}
+
+		if name == "tile38" {
+
+			pr, err := process.NewTile38Process(*data_root, *t38_host, *t38_port, *t38_collection, logger)
+
+			if err != nil {
+				golog.Fatal("Failed to instantiate Tile38 hooks processor", err)
 			}
 
 			processors_async = append(processors_async, pr)
