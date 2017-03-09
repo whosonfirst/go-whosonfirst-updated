@@ -355,7 +355,7 @@ func main() {
 		for _, pr := range processors_async {
 
 			name := pr.Name()
-			logger.Debug("Invoking ascnc processor %s (%s)", name, task)
+			logger.Debug("Invoking async processor %s (%s)", name, task)
 
 			wg.Add(1)
 
