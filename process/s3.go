@@ -1,16 +1,16 @@
 package process
 
 import (
-	_ "fmt"
+	"fmt"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-s3"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
 	"github.com/whosonfirst/go-whosonfirst-updated/utils"
+	"github.com/whosonfirst/go-whosonfirst-uri"
 	"os"
 	_ "os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 )
@@ -107,9 +107,28 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 
 	for _, path := range task.Commits {
 
-		if strings.HasSuffix(path, ".geojson") {
-			files = append(files, path)
+		repo_path := filepath.Join(pr.data_root, repo)
+		abs_path := filepath.Join(repo_path, path)
+
+		wof, err := uri.IsWOFFile(abs_path)
+
+		if err != nil {
+			pr.logger.Warning(fmt.Sprintf("Failed to determine if %s is a WOF file, because %s", abs_path, err))
+			continue
 		}
+
+		if !wof {
+			continue
+		}
+
+		_, err = os.Stat(abs_path)
+
+		if os.IsNotExist(err) {
+			pr.logger.Warning(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
+			continue
+		}
+
+		files = append(files, path)
 	}
 
 	pr.files[repo] = files
