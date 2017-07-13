@@ -123,8 +123,19 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 
 		_, err = os.Stat(abs_path)
 
+		// because this: https://github.com/whosonfirst/go-whosonfirst-updated/issues/8
+		//
+		// this one is a bit complicated and the decision to disable explicit warnings
+		// may well bite us in the ass one day but the problem is that there are sometimes
+		// legitimate reasons why a file (specifically an -alt file for which we don't
+		// make the same kinds of promises) might be deleted from a repo, but will still
+		// show up in the list of files for a commit - maybe it's possible to filter that
+		// list to prune things that have been deleted and maybe the rule needs to be that
+		// dealing with non-existant files needs to be handled before we get here but today
+		// and right now we're not... (20170713/thisisaaronland)
+
 		if os.IsNotExist(err) {
-			pr.logger.Warning(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
+			pr.logger.Debug(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
 			continue
 		}
 
