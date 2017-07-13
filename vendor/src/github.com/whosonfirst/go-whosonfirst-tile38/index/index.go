@@ -11,14 +11,13 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-placetypes"
 	"github.com/whosonfirst/go-whosonfirst-tile38"
 	"github.com/whosonfirst/go-whosonfirst-tile38/util"
+	"github.com/whosonfirst/go-whosonfirst-uri"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -236,8 +235,10 @@ func (idx *Tile38Indexer) IndexFeature(feature *geojson.WOFFeature, collection s
 		is_superseded = 1
 	}
 
-	set_cmd := []string{
-		"SET", collection, key,
+	set_cmd := "SET"
+
+	set_args := []interface{}{
+		collection, key,
 		"FIELD", "wof:id", strconv.Itoa(wofid),
 		"FIELD", "wof:placetype_id", strconv.FormatInt(pt.Id, 10),
 		"FIELD", "wof:parent_id", strconv.Itoa(parent),
@@ -252,21 +253,38 @@ func (idx *Tile38Indexer) IndexFeature(feature *geojson.WOFFeature, collection s
 		// and we're not running in debug mode in which case we'll, you
 		// know... need the geom (20170305/thisisaaronland)
 
-		set_cmd_copy := set_cmd
+		if idx.Geometry != "" {
+			log.Println(util.RESPCommandToString(set_cmd, set_args))
+		} else {
 
-		if idx.Geometry == "" {
-			set_cmd_copy[len(set_cmd_copy)-1] = "..."
+			copy_args := make([]interface{}, 0)
+
+			count := len(set_args)
+			last := count - 2
+
+			for _, a := range set_args[:last] {
+				copy_args = append(copy_args, a)
+			}
+
+			copy_args = append(copy_args, "...")
+
+			log.Println(util.RESPCommandToString(set_cmd, copy_args))
 		}
 
-		log.Println(strings.Join(set_cmd_copy, " "))
 	}
 
 	if !idx.Debug {
 
-		t38_cmd, t38_args := util.ListToRESPCommand(set_cmd)
-		_, err := idx.client.Do(t38_cmd, t38_args...)
+		rsp, err := idx.client.Do(set_cmd, set_args...)
 
 		if err != nil {
+			return err
+		}
+
+		err = util.EnsureOk(rsp)
+
+		if err != nil {
+			log.Printf("FAILED to SET key for %s because, %v\n", key, err)
 			return err
 		}
 	}
@@ -284,12 +302,9 @@ func (idx *Tile38Indexer) IndexFeature(feature *geojson.WOFFeature, collection s
 		country = "XX"
 	}
 
-	// hier := feature.Hierarchy()
-
 	meta := Meta{
 		Name:    name,
 		Country: country,
-		// Hierarchy: hier,
 	}
 
 	meta_json, err := json.Marshal(meta)
@@ -303,29 +318,37 @@ func (idx *Tile38Indexer) IndexFeature(feature *geojson.WOFFeature, collection s
 	// information? We may not always do that (maybe should never do that) but today we do do
 	// that... (20161017/thisisaaronland)
 
-	meta_cmd := []string{
-		"SET", collection, meta_key,
+	meta_cmd := "SET"
+
+	meta_args := []interface{}{
+		collection, meta_key,
 		"STRING", string(meta_json),
 	}
 
 	if idx.Verbose {
-		log.Println(strings.Join(meta_cmd, " "))
+		log.Println(util.RESPCommandToString(meta_cmd, meta_args))
 	}
 
 	if !idx.Debug {
 
-		t38_cmd, t38_args := util.ListToRESPCommand(meta_cmd)
-
-		_, err := idx.client.Do(t38_cmd, t38_args...)
+		rsp, err := idx.client.Do(meta_cmd, meta_args...)
 
 		if err != nil {
-			log.Printf("FAILED to set meta on %s because, %v\n", meta_key, err)
+			log.Printf("FAILED to SET key for %s because, %v\n", meta_key, err)
+			return err
+		}
+
+		err = util.EnsureOk(rsp)
+
+		if err != nil {
+			log.Printf("FAILED to SET key for %s because, %v\n", meta_key, err)
 			return err
 		}
 	}
 
 	if idx.Verbose {
-		log.Println("OKAY", key, meta_key)
+		log.Println("SET", key)
+		log.Println("SET", meta_key)
 	}
 
 	return nil
@@ -382,6 +405,10 @@ func (idx *Tile38Indexer) IndexMetaFile(csv_path string, collection string, data
 				ch <- true
 			}()
 
+			if !idx.EnsureWOF(abs_path, false) {
+				return
+			}
+
 			idx.IndexFile(abs_path, collection)
 
 		}(ch)
@@ -394,17 +421,9 @@ func (idx *Tile38Indexer) IndexMetaFile(csv_path string, collection string, data
 
 func (idx *Tile38Indexer) IndexDirectory(abs_path string, collection string, nfs_kludge bool) error {
 
-	re_wof, _ := regexp.Compile(`(\d+)\.geojson$`)
-
 	cb := func(abs_path string, info os.FileInfo) error {
 
-		// please make me more like this...
-		// https://github.com/whosonfirst/py-mapzen-whosonfirst-utils/blob/master/mapzen/whosonfirst/utils/__init__.py#L265
-
-		fname := filepath.Base(abs_path)
-
-		if !re_wof.MatchString(fname) {
-			// log.Println("skip", abs_path)
+		if !idx.EnsureWOF(abs_path, false) {
 			return nil
 		}
 
@@ -455,11 +474,15 @@ func (idx *Tile38Indexer) IndexFileList(abs_path string, collection string) erro
 
 		wg.Add(1)
 
-		go func(path string, collection string, wg *sync.WaitGroup, ch chan bool) {
+		go func(abs_path string, collection string, wg *sync.WaitGroup, ch chan bool) {
 
 			defer wg.Done()
 
-			idx.IndexFile(path, collection)
+			if !idx.EnsureWOF(abs_path, false) {
+				return
+			}
+
+			idx.IndexFile(abs_path, collection)
 			ch <- true
 
 		}(path, collection, wg, ch)
@@ -468,4 +491,31 @@ func (idx *Tile38Indexer) IndexFileList(abs_path string, collection string) erro
 	wg.Wait()
 
 	return nil
+}
+
+func (idx *Tile38Indexer) EnsureWOF(abs_path string, allow_alt bool) bool {
+
+	wof, err := uri.IsWOFFile(abs_path)
+
+	if err != nil {
+		log.Println(fmt.Sprintf("Failed to determine whether %s is a WOF file, because %s", abs_path, err))
+		return false
+	}
+
+	if !wof {
+		return false
+	}
+
+	alt, err := uri.IsAltFile(abs_path)
+
+	if err != nil {
+		log.Println(fmt.Sprintf("Failed to determine whether %s is an alt file, because %s", abs_path, err))
+		return false
+	}
+
+	if alt && !allow_alt {
+		return false
+	}
+
+	return true
 }

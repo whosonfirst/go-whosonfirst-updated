@@ -16,10 +16,11 @@ import (
 	"flag"
 	"fmt"
 	"github.com/facebookgo/grace/gracehttp"
+	"github.com/whosonfirst/go-sanitize"
 	"github.com/whosonfirst/go-whosonfirst-bbox/parser"
 	"github.com/whosonfirst/go-whosonfirst-tile38"
 	"github.com/whosonfirst/go-whosonfirst-tile38/client"
-	"github.com/whosonfirst/go-whosonfirst-tile38/util"
+	_ "github.com/whosonfirst/go-whosonfirst-tile38/util"
 	"github.com/whosonfirst/go-whosonfirst-tile38/whosonfirst"
 	"log"
 	"net/http"
@@ -47,12 +48,42 @@ func main() {
 
 		query := req.URL.Query()
 
-		bbox := query.Get("bbox")
-		scheme := query.Get("scheme")
-		order := query.Get("order")
+		opts := sanitize.DefaultOptions()
 
-		cursor := query.Get("cursor")
-		per_page := query.Get("per_page")
+		bbox, err := sanitize.SanitizeString(query.Get("bbox"), opts)
+
+		if err != nil {
+			http.Error(rsp, "Invalid bbox parameter", http.StatusBadRequest)
+			return
+		}
+
+		scheme, err := sanitize.SanitizeString(query.Get("scheme"), opts)
+
+		if err != nil {
+			http.Error(rsp, "Invalid scheme parameter", http.StatusBadRequest)
+			return
+		}
+
+		order, err := sanitize.SanitizeString(query.Get("order"), opts)
+
+		if err != nil {
+			http.Error(rsp, "Invalid order parameter", http.StatusBadRequest)
+			return
+		}
+
+		cursor, err := sanitize.SanitizeString(query.Get("cursor"), opts)
+
+		if err != nil {
+			http.Error(rsp, "Invalid cursor parameter", http.StatusBadRequest)
+			return
+		}
+
+		per_page, err := sanitize.SanitizeString(query.Get("per_page"), opts)
+
+		if err != nil {
+			http.Error(rsp, "Invalid per_page parameter", http.StatusBadRequest)
+			return
+		}
 
 		if bbox == "" {
 			http.Error(rsp, "Missing bbox parameter", http.StatusBadRequest)
@@ -86,21 +117,30 @@ func main() {
 		nelat := bb.MaxY()
 		nelon := bb.MaxX()
 
-		cmd := []string{
-			fmt.Sprintf("INTERSECTS %s", *t38_collection),
+		t38_cmd := "INTERSECTS"
+
+		t38_args := []interface{}{
+			*t38_collection,
 		}
 
 		if cursor != "" {
-			cmd = append(cmd, fmt.Sprintf("CURSOR %s", cursor))
+			t38_args = append(t38_args, "CURSOR")
+			t38_args = append(t38_args, cursor)
 		}
 
 		if per_page != "" {
-			cmd = append(cmd, fmt.Sprintf("LIMIT %s", per_page))
+			t38_args = append(t38_args, "LIMIT")
+			t38_args = append(t38_args, per_page)
 		}
 
-		cmd = append(cmd, fmt.Sprintf("POINTS BOUNDS %0.6f %0.6f %0.6f %0.6f", swlat, swlon, nelat, nelon))
+		t38_args = append(t38_args, "POINTS")
+		t38_args = append(t38_args, "BOUNDS")
 
-		t38_cmd, t38_args := util.ListToRESPCommand(cmd)
+		t38_args = append(t38_args, swlat)
+		t38_args = append(t38_args, swlon)
+		t38_args = append(t38_args, nelat)
+		t38_args = append(t38_args, nelon)
+
 		t38_rsp, err := t38_client.Do(t38_cmd, t38_args...)
 
 		if err != nil {

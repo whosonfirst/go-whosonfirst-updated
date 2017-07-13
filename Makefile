@@ -5,7 +5,7 @@ prep:
 	if test -d pkg; then rm -rf pkg; fi
 
 self:   prep rmdeps
-	if test ! -d src; then mkdir src; fi
+	if test -d src; then rm -rf src; fi
 	if test ! -d src/github.com/whosonfirst/go-whosonfirst-updated/updated; then mkdir -p src/github.com/whosonfirst/go-whosonfirst-updated/; fi
 	cp  updated.go src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r process src/github.com/whosonfirst/go-whosonfirst-updated/
@@ -19,7 +19,7 @@ self:   prep rmdeps
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/kellydunn src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/lib src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/ziutek src/github.com/
-	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/tidwall src/github.com/
+	# mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/tidwall src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/erikstmartin src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/jeffail/gabs src/github.com/jeffail/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/kylelemons src/github.com/

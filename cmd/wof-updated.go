@@ -26,6 +26,7 @@ func main() {
 	var es_index_tool = flag.String("es-index-tool", "/usr/local/bin/wof-es-index-filelist", "")
 	var log_file = flag.String("log-file", "", "Write logging information to this file")
 	var log_level = flag.String("log-level", "info", "The amount of logging information to include, valid options are: debug, info, status, warning, error, fatal")
+	var log_prefix = flag.String("log-prefix", "", "A string to prefix logging messages with")
 	var log_slack = flag.Bool("log-slack", false, "...")
 	var log_slack_conf = flag.String("log-slack-conf", "", "...")
 	var log_slack_level = flag.String("log-slack-level", "", "status")
@@ -66,7 +67,19 @@ func main() {
 
 	writer := io.MultiWriter(writers...)
 
-	logger := log.NewWOFLogger("updated")
+	hostname, err := os.Hostname()
+
+	if err != nil {
+		golog.Fatal(err)
+	}
+
+	prefix := fmt.Sprintf("[%s]", hostname)
+
+	if *log_prefix != "" {
+		prefix = fmt.Sprintf("%s %s", *log_prefix, prefix)
+	}
+
+	logger := log.NewWOFLogger(prefix)
 	logger.AddLogger(writer, *log_level)
 
 	if *log_slack {

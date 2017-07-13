@@ -231,6 +231,13 @@ func (sink *Sync) SyncFile(source string, root string, wg *sync.WaitGroup) error
 			dest = path.Join(sink.Prefix, dest)
 		}
 
+		_, err := os.Stat(source)
+
+		if os.IsNotExist(err) {
+			sink.Logger.Debug("Source file (%s) does not exist, skipping", source)
+			return
+		}
+
 		// Note: both HasChanged and SyncFile will ioutil.ReadFile(source)
 		// which is a potential waste of time and resource. Or maybe we just
 		// don't care? (20150930/thisisaaronland)
@@ -257,7 +264,7 @@ func (sink *Sync) SyncFile(source string, root string, wg *sync.WaitGroup) error
 			return
 		}
 
-		err := sink.DoSyncFile(source, dest)
+		err = sink.DoSyncFile(source, dest)
 		atomic.AddInt64(&sink.Completed, 1)
 
 		if err != nil {
