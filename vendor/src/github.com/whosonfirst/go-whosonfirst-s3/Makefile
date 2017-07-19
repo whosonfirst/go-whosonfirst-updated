@@ -19,7 +19,6 @@ deps: 	rmdeps
 	@GOPATH=$(shell pwd) go get -u "github.com/whosonfirst/go-whosonfirst-crawl"
 	@GOPATH=$(shell pwd) go get -u "github.com/whosonfirst/go-whosonfirst-log"
 	@GOPATH=$(shell pwd) go get -u "github.com/whosonfirst/go-whosonfirst-pool"
-	@GOPATH=$(shell pwd) go get -u "github.com/whosonfirst/go-whosonfirst-utils"
 	@GOPATH=$(shell pwd) go get -u "github.com/whosonfirst/go-writer-slackcat"
 	@GOPATH=$(shell pwd) go get -u "github.com/jeffail/tunny"
 	@GOPATH=$(GOPATH) go get -u "github.com/aws/aws-sdk-go"
@@ -29,6 +28,8 @@ vendor-deps: deps
 	if test -d vendor/src; then rm -rf vendor/src; fi
 	cp -r src vendor/src
 	find vendor -name '.git' -print -type d -exec rm -rf {} +
+	# PLEASE FINISH ME - REMOVE EVERYTHING BUT 's3' FROM vendor/src/github.com/aws/aws-sdk-go/service
+	# ls -A vendor/src/github.com/aws/aws-sdk-go/service | grep -v s3
 	rm -rf src
 
 bin:	self
