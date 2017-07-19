@@ -124,7 +124,12 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 		_, err = os.Stat(abs_path)
 
 		if os.IsNotExist(err) {
-			pr.logger.Warning(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
+
+			// because this... at least for now...
+			// https://github.com/whosonfirst/go-whosonfirst-updated/issues/9
+			// https://github.com/whosonfirst/go-writer-slackcat/issues/1
+
+			// pr.logger.Warning(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
 			continue
 		}
 
