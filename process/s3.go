@@ -215,6 +215,11 @@ func (pr *S3Process) _process(repo string) error {
 		return err
 	}
 
+	defer func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}()
+
 	/* end of sudo wrap all of this in a single function somewhere... */
 
 	debug := false
@@ -232,7 +237,5 @@ func (pr *S3Process) _process(repo string) error {
 	}
 
 	pr.logger.Debug("Successfully processed (S3) file list %s", tmpfile.Name())
-	os.Remove(tmpfile.Name())
-
 	return nil
 }
