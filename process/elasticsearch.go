@@ -215,6 +215,11 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 
 	/* end of sudo wrap all of this in a single function somewhere... */
 
+	defer func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}()
+
 	pr.logger.Debug("Process (ES) file list %s", tmpfile.Name())
 
 	// please write me in Go... (20161222/thisisaaronland)
@@ -238,7 +243,5 @@ func (pr *ElasticsearchProcess) _process(repo string) error {
 	}
 
 	pr.logger.Debug("Successfully processed (ES) file list %s", tmpfile.Name())
-	os.Remove(tmpfile.Name())
-
 	return nil
 }
