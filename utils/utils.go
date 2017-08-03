@@ -30,5 +30,8 @@ func FilesToFileList(files []string, root string) (*os.File, error) {
 		seen[abs_path] = true
 	}
 
+	// Remember: this is an open filehandle and you need to remember
+	// to close it or hilarity will ensue...
+
 	return tmpfile, nil
 }

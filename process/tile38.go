@@ -207,6 +207,11 @@ func (pr *Tile38Process) _process(repo string) error {
 		return err
 	}
 
+	defer func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}()
+
 	err = pr.indexer.IndexFileList(tmpfile.Name(), pr.collection)
 
 	if err != nil {
@@ -215,7 +220,6 @@ func (pr *Tile38Process) _process(repo string) error {
 	}
 
 	pr.logger.Debug("Successfully processed (Tile38) file list %s", tmpfile.Name())
-	os.Remove(tmpfile.Name())
 
 	return nil
 

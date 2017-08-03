@@ -135,7 +135,16 @@ func (pr *S3Process) ProcessTask(task updated.UpdateTask) error {
 		// and right now we're not... (20170713/thisisaaronland)
 
 		if os.IsNotExist(err) {
+<<<<<<< HEAD
 			pr.logger.Debug(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
+=======
+
+			// because this... at least for now...
+			// https://github.com/whosonfirst/go-whosonfirst-updated/issues/9
+			// https://github.com/whosonfirst/go-writer-slackcat/issues/1
+
+			// pr.logger.Warning(fmt.Sprintf("Failed to clone %s, because it doesn't exist", abs_path))
+>>>>>>> d7b14b395f9e893a0d10623fdeabcb2c29678396
 			continue
 		}
 
@@ -226,6 +235,11 @@ func (pr *S3Process) _process(repo string) error {
 		return err
 	}
 
+	defer func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}()
+
 	/* end of sudo wrap all of this in a single function somewhere... */
 
 	debug := false
@@ -243,7 +257,5 @@ func (pr *S3Process) _process(repo string) error {
 	}
 
 	pr.logger.Debug("Successfully processed (S3) file list %s", tmpfile.Name())
-	os.Remove(tmpfile.Name())
-
 	return nil
 }

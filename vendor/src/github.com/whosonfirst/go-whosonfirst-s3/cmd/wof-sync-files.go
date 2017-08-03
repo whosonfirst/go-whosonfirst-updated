@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	log "github.com/whosonfirst/go-whosonfirst-log"
+	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-s3"
 	"github.com/whosonfirst/go-writer-slackcat"
 	"io"

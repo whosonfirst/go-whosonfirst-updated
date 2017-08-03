@@ -19,7 +19,7 @@ self:   prep rmdeps
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/kellydunn src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/lib src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/ziutek src/github.com/
-	# mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/tidwall src/github.com/
+	mv src/github.com/whosonfirst/go-whosonfirst-tile38/vendor/src/github.com/tidwall src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/erikstmartin src/github.com/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/jeffail/gabs src/github.com/jeffail/
 	mv src/github.com/whosonfirst/go-whosonfirst-geojson/vendor/src/github.com/kylelemons src/github.com/
