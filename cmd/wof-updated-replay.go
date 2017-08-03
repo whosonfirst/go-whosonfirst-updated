@@ -18,6 +18,7 @@ import (
 func main() {
 
 	var dryrun = flag.Bool("dryrun", false, "Just show which files would be updated but don't actually do anything.")
+	var verbose = flag.Bool("verbose", false, "Enable verbose logging.")
 
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
@@ -25,7 +26,7 @@ func main() {
 
 	var repo = flag.String("repo", "", "The path to a valid Who's On First repo to run updates from")
 	var start_commit = flag.String("start-commit", "", "A valid Git commit hash to start updates from. If empty then the current hash will be used.")
-	var stop_commit = flag.String("stop-commit", "HEAD", "A valid Git commit hash to limit updates to.")
+	var stop_commit = flag.String("stop-commit", "", "A valid Git commit hash to limit updates to.")
 
 	flag.Parse()
 
@@ -77,7 +78,14 @@ func main() {
 		"log", "--pretty=format:#%H", "--name-only",
 	}
 
-	commit_range := fmt.Sprintf("%s^...%s", *start_commit, *stop_commit)
+	var commit_range string
+
+	if *stop_commit == "" {
+		commit_range = *start_commit
+	} else {
+		commit_range = fmt.Sprintf("%s^...%s", *start_commit, *stop_commit)
+	}
+
 	git_args = append(git_args, commit_range)
 
 	log.Println(strings.Join(git_args, " "))
@@ -94,10 +102,15 @@ func main() {
 	var b bytes.Buffer
 	buf := bufio.NewWriter(&b)
 
+	// please add support for multiwriters here to send
+	// verbose output to STDOUT
+
 	fieldnames := []string{"hash", "repo", "path"}
 	writer, err := csv.NewDictWriter(buf, fieldnames)
 
 	var hash string
+
+	rows := 0
 
 	for _, ln := range strings.Split(string(out), "\n") {
 
@@ -113,14 +126,22 @@ func main() {
 			row["path"] = ln
 
 			writer.WriteRow(row)
+			rows += 1
 		}
 	}
 
 	buf.Flush()
 
-	log.Println(b.String())
+	// see above inre multiwriters...
+
+	if *verbose {
+		log.Println(b.String())
+	}
+
+	log.Printf("sending %d rows\n", rows)
 
 	if !*dryrun {
+
 		redis_endpoint := fmt.Sprintf("%s:%d", *redis_host, *redis_port)
 
 		redis_client := redis.NewTCPClient(&redis.Options{
@@ -129,8 +150,27 @@ func main() {
 
 		defer redis_client.Close()
 
-		redis_client.Publish(*redis_channel, b.String())
+		rsp := redis_client.Publish(*redis_channel, b.String())
+		err := rsp.Err()
+
+		/*
+
+			For example...
+
+			./bin/wof-updated-replay -repo /usr/local/data/whosonfirst-data -start-commit 2569568cd91df9a682c01793930009a9e2850e90
+			2017/08/03 15:04:45 log --pretty=format:#%H --name-only 2569568cd91df9a682c01793930009a9e2850e90
+			2017/08/03 15:05:32 sending 6609492 rows
+			2017/08/03 15:05:33 write tcp 127.0.0.1:49847->127.0.0.1:6379: write: connection reset by peer
+
+			I suppose there is a config flag somewhere in the Redis/PubSub stack to enable MASSIVE messages?
+			I haven't found it yet if it exists (20170803/thisisaaronland)
+
+		*/
+
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	// log.Printf("%s", files)
+	os.Exit(0)
 }
