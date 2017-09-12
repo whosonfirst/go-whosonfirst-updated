@@ -1,6 +1,7 @@
 package process
 
 import (
+	idx "github.com/whosonfirst/go-whosonfirst-index"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-tile38/client"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"

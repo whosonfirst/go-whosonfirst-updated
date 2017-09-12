@@ -21,7 +21,7 @@ build:	fmt bin
 deps:   rmdeps
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-s3"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-log"
-	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-csv"
+	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-index"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-tile38"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-uri"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-slackcat-writer"
