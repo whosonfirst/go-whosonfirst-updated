@@ -1,7 +1,9 @@
 package process
 
 import (
+       "context"
 	idx "github.com/whosonfirst/go-whosonfirst-index"
+	"github.com/whosonfirst/go-whosonfirst-geojson-v2/feature"
 	"github.com/whosonfirst/go-whosonfirst-log"
 	"github.com/whosonfirst/go-whosonfirst-tile38/client"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
@@ -9,6 +11,7 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
 	"github.com/whosonfirst/go-whosonfirst-updated/utils"
 	"github.com/whosonfirst/go-whosonfirst-uri"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -213,11 +216,36 @@ func (pr *Tile38Process) _process(repo string) error {
 		os.Remove(tmpfile.Name())
 	}()
 
+	/*
 	err = pr.indexer.IndexFileList(tmpfile.Name(), pr.collection)
 
 	if err != nil {
 		pr.logger.Error("Failed to process (Tile38) file list because %s (%s)", err, tmpfile.Name())
 		return err
+	}
+	*/
+
+	cb := func(fh io.Reader, ctx context.Context, args ...interface{}) error {
+
+		f, err := feature.LoadWOFFeatureFromReader(fh)
+
+		if err != nil {
+			return err
+		}
+
+		return pr.indexer.IndexFeature(f, pr.collection)
+	}
+
+	wof_indexer, err := idx.NewIndexer("filelist", cb)
+
+	if err != nil {
+		pr.logger.Fatal("Failed to create new indexer because %s", err)
+	}
+
+	err = wof_indexer.IndexPaths(tmpfile.Name())
+
+	if err != nil {
+		pr.logger.Fatal("Failed to index %s mode because %s", tmpfile.Name(), err)
 	}
 
 	pr.logger.Debug("Successfully processed (Tile38) file list %s", tmpfile.Name())
