@@ -242,7 +242,9 @@ func (pr *Tile38Process) _process(repo string) error {
 		pr.logger.Fatal("Failed to create new indexer because %s", err)
 	}
 
-	err = wof_indexer.IndexPaths(tmpfile.Name())
+	paths := []string{ tmpfile.Name() }
+
+	err = wof_indexer.IndexPaths(paths)
 
 	if err != nil {
 		pr.logger.Fatal("Failed to index %s mode because %s", tmpfile.Name(), err)

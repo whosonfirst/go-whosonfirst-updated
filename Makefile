@@ -19,6 +19,7 @@ rmdeps:
 build:	fmt bin
 
 deps:   rmdeps
+	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-csv"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-s3"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-geojson-v2"
 	@GOPATH=$(GOPATH) go get -u "github.com/whosonfirst/go-whosonfirst-log"
@@ -32,6 +33,7 @@ vendor-deps: deps
 	if test -d vendor; then rm -rf vendor; fi
 	cp -r src vendor
 	find vendor -name '.git' -print -type d -exec rm -rf {} +
+	rm -rf vendor/github.com/whosonfirst/go-whosonfirst-tile38/vendor/github.com/whosonfirst/go-whosonfirst-geojson-v2
 
 bin: 	self
 	@GOPATH=$(GOPATH) go build -o bin/wof-updated cmd/wof-updated.go
