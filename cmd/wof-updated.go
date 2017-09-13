@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/whosonfirst/go-slackcat-writer"
 	"github.com/whosonfirst/go-whosonfirst-log"
+	t38_flags "github.com/whosonfirst/go-whosonfirst-tile38/flags"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/process"
 	"gopkg.in/redis.v1"
@@ -18,6 +19,10 @@ import (
 )
 
 func main() {
+
+	var t38_endpoints t38_flags.Endpoints
+
+	flag.Var(&t38_endpoints, "tile38-endpoint", "One or more Tile38 'host:port' (or simply 'host' in which case port is assumed to be '9851') endpoints to connect to.")
 
 	var data_root = flag.String("data-root", "", "...")
 	var es_host = flag.String("es-host", "localhost", "")
@@ -39,8 +44,6 @@ func main() {
 	var redis_host = flag.String("redis-host", "localhost", "Redis host")
 	var redis_port = flag.Int("redis-port", 6379, "Redis port")
 	var redis_channel = flag.String("redis-channel", "updated", "Redis channel")
-	var t38_host = flag.String("tile38-host", "localhost", "Til38 host")
-	var t38_port = flag.Int("tile38-port", 9851, "Tile38 port")
 	var t38_collection = flag.String("tile38-collection", "", "Tile38 collection")
 	var s3_bucket = flag.String("s3-bucket", "whosonfirst.mapzen.com", "...")
 	var s3_prefix = flag.String("s3-prefix", "", "...")
@@ -115,7 +118,7 @@ func main() {
 			pr, err := process.NewPullProcess(*data_root, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate Git hooks processor", err)
+				logger.Fatal("Failed to instantiate Git hooks processor %v", err)
 			}
 
 			processors_pre = append(processors_pre, pr)
@@ -131,7 +134,7 @@ func main() {
 			pr, err := process.NewS3Process(*data_root, *s3_bucket, *s3_prefix, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate S3 hooks processor", err)
+				logger.Fatal("Failed to instantiate S3 hooks processor %v", err)
 			}
 
 			processors_async = append(processors_async, pr)
@@ -142,7 +145,7 @@ func main() {
 			pr, err := process.NewElasticsearchProcess(*data_root, *es_index_tool, *es_host, *es_port, *es_index, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate Elasticsearch hooks processor", err)
+				logger.Fatal("Failed to instantiate Elasticsearch hooks processor %v", err)
 			}
 
 			processors_async = append(processors_async, pr)
@@ -150,10 +153,16 @@ func main() {
 
 		if name == "tile38" {
 
-			pr, err := process.NewTile38Process(*data_root, *t38_host, *t38_port, *t38_collection, logger)
+			t38_clients, err := t38_endpoints.ToClients()
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate Tile38 hooks processor", err)
+				logger.Fatal("failed to convert endpoints to clients because %v", err)
+			}
+
+			pr, err := process.NewTile38Process(*data_root, t38_clients, *t38_collection, logger)
+
+			if err != nil {
+				logger.Fatal("Failed to instantiate Tile38 hooks processor, %v", err)
 			}
 
 			processors_async = append(processors_async, pr)
@@ -164,7 +173,7 @@ func main() {
 			pr, err := process.NewLFSProcess(*data_root, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate LFS hooks processor", err)
+				logger.Fatal("Failed to instantiate LFS hooks processor, %v", err)
 			}
 
 			processors_async = append(processors_async, pr)
@@ -175,7 +184,7 @@ func main() {
 			pr, err := process.NewNullProcess(*data_root, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate null hooks processor", err)
+				logger.Fatal("Failed to instantiate null hooks processor, %v", err)
 			}
 
 			processors_async = append(processors_async, pr)
@@ -192,7 +201,7 @@ func main() {
 			pr, err := process.NewPubSubProcess(*data_root, *pubsub_host, *pubsub_port, *pubsub_channel, logger)
 
 			if err != nil {
-				golog.Fatal("Failed to instantiate PubSub hooks processor", err)
+				logger.Fatal("Failed to instantiate PubSub hooks processor, %v", err)
 			}
 
 			processors_post = append(processors_post, pr)
@@ -200,7 +209,7 @@ func main() {
 	}
 
 	if len(processors_pre) == 0 && len(processors_async) == 0 && len(processors_post) == 0 {
-		golog.Fatal("You forgot to specify any processors, silly")
+		logger.Fatal("You forgot to specify any processors, silly")
 	}
 
 	ps_messages := make(chan string)

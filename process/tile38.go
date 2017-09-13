@@ -1,11 +1,11 @@
 package process
 
 import (
-       "context"
-	idx "github.com/whosonfirst/go-whosonfirst-index"
+	"context"
 	"github.com/whosonfirst/go-whosonfirst-geojson-v2/feature"
+	idx "github.com/whosonfirst/go-whosonfirst-index"
 	"github.com/whosonfirst/go-whosonfirst-log"
-	"github.com/whosonfirst/go-whosonfirst-tile38/client"
+	"github.com/whosonfirst/go-whosonfirst-tile38"
 	"github.com/whosonfirst/go-whosonfirst-tile38/index"
 	"github.com/whosonfirst/go-whosonfirst-updated"
 	"github.com/whosonfirst/go-whosonfirst-updated/queue"
@@ -29,7 +29,7 @@ type Tile38Process struct {
 	logger     *log.WOFLogger
 }
 
-func NewTile38Process(data_root string, t38_host string, t38_port int, t38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
+func NewTile38Process(data_root string, t38_clients []tile38.Tile38Client, t38_collection string, logger *log.WOFLogger) (*Tile38Process, error) {
 
 	data_root, err := filepath.Abs(data_root)
 
@@ -43,13 +43,7 @@ func NewTile38Process(data_root string, t38_host string, t38_port int, t38_colle
 		return nil, err
 	}
 
-	t38_client, err := client.NewRESPClient(t38_host, t38_port)
-
-	if err != nil {
-		return nil, err
-	}
-
-	t38_indexer, err := index.NewTile38Indexer(t38_client)
+	t38_indexer, err := index.NewTile38Indexer(t38_clients...)
 
 	q, err := queue.NewQueue()
 
@@ -217,12 +211,12 @@ func (pr *Tile38Process) _process(repo string) error {
 	}()
 
 	/*
-	err = pr.indexer.IndexFileList(tmpfile.Name(), pr.collection)
+		err = pr.indexer.IndexFileList(tmpfile.Name(), pr.collection)
 
-	if err != nil {
-		pr.logger.Error("Failed to process (Tile38) file list because %s (%s)", err, tmpfile.Name())
-		return err
-	}
+		if err != nil {
+			pr.logger.Error("Failed to process (Tile38) file list because %s (%s)", err, tmpfile.Name())
+			return err
+		}
 	*/
 
 	cb := func(fh io.Reader, ctx context.Context, args ...interface{}) error {
@@ -242,7 +236,7 @@ func (pr *Tile38Process) _process(repo string) error {
 		pr.logger.Fatal("Failed to create new indexer because %s", err)
 	}
 
-	paths := []string{ tmpfile.Name() }
+	paths := []string{tmpfile.Name()}
 
 	err = wof_indexer.IndexPaths(paths)
 
