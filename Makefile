@@ -8,6 +8,7 @@ self:   prep rmdeps
 	if test -d src; then rm -rf src; fi
 	if test ! -d src/github.com/whosonfirst/go-whosonfirst-updated/updated; then mkdir -p src/github.com/whosonfirst/go-whosonfirst-updated/; fi
 	cp  updated.go src/github.com/whosonfirst/go-whosonfirst-updated/
+	cp -r flags src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r process src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r queue src/github.com/whosonfirst/go-whosonfirst-updated/
 	cp -r utils src/github.com/whosonfirst/go-whosonfirst-updated/
