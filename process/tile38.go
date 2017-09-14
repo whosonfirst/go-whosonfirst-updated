@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 type Tile38Process struct {
@@ -164,6 +165,13 @@ func (pr *Tile38Process) ProcessRepo(repo string) error {
 }
 
 func (pr *Tile38Process) _process(repo string) error {
+
+	t1 := time.Now()
+
+	defer func() {
+		t2 := time.Since(t1)
+		pr.logger.Status("Time to process (%s) %s: %v", pr.Name(), repo, t2)
+	}()
 
 	root := filepath.Join(pr.data_root, repo)
 
