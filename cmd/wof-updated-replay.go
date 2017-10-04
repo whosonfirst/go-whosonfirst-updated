@@ -75,7 +75,7 @@ func main() {
 	}
 
 	git_args := []string{
-		"log", "--pretty=format:#%H", "--name-only",
+		"show", "--pretty=format:#%H", "--name-only",
 	}
 
 	var commit_range string
