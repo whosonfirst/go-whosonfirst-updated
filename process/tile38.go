@@ -241,7 +241,8 @@ func (pr *Tile38Process) _process(repo string) error {
 	wof_indexer, err := idx.NewIndexer("filelist", cb)
 
 	if err != nil {
-		pr.logger.Fatal("Failed to create new indexer because %s", err)
+		pr.logger.Error("Failed to create new indexer because %s", err)
+		return err
 	}
 
 	paths := []string{tmpfile.Name()}
@@ -249,7 +250,8 @@ func (pr *Tile38Process) _process(repo string) error {
 	err = wof_indexer.IndexPaths(paths)
 
 	if err != nil {
-		pr.logger.Fatal("Failed to index %s mode because %s", tmpfile.Name(), err)
+		pr.logger.Error("Failed to index %s mode because %s", tmpfile.Name(), err)
+		return err
 	}
 
 	pr.logger.Debug("Successfully processed (Tile38) file list %s", tmpfile.Name())
