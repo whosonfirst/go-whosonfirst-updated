@@ -38,6 +38,7 @@ vendor-deps: deps
 
 bin: 	self
 	@GOPATH=$(GOPATH) go build -o bin/wof-updated cmd/wof-updated.go
+	@GOPATH=$(GOPATH) go build -o bin/wof-updated-atomic cmd/wof-updated-atomic.go
 	@GOPATH=$(GOPATH) go build -o bin/wof-updated-replay cmd/wof-updated-replay.go
 
 fmt:
