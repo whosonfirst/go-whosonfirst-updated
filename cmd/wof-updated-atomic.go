@@ -6,9 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"github.com/whosonfirst/go-whosonfirst-csv"
+	"github.com/whosonfirst/go-whosonfirst-repo"
+	"github.com/whosonfirst/go-whosonfirst-uri"
 	"gopkg.in/redis.v1"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -44,20 +48,40 @@ func main() {
 			log.Fatal("Invalid arg", a)
 		}
 
-		repo := parts[0]
-		file := parts[1]
+		repo_name := parts[0]
+		path := parts[1]
+
+		_, err := repo.NewDataRepoFromString(repo_name)
+
+		if err != nil {
+			log.Fatal("Invalid repo", repo_name, err)
+		}
+
+		wofid, err := strconv.ParseInt(path, 10, 64)
+
+		if err == nil {
+
+			rel_path, err := uri.Id2RelPath(wofid)
+
+			if err != nil {
+				log.Fatal("Invalid WOF ID", wofid, err)
+			}
+
+			path = filepath.Join("data", rel_path)
+		}
+
+		// check WOF ID against repo because a) general validation and
+		// b) https://github.com/whosonfirst/go-whosonfirst-updated/issues/17
 
 		row := make(map[string]string)
 		row["hash"] = "atomic-update"
-		row["repo"] = repo
-		row["path"] = file
+		row["repo"] = repo_name
+		row["path"] = path
 
 		writer.WriteRow(row)
 	}
 
 	buf.Flush()
-
-	// see above inre multiwriters...
 
 	if *verbose {
 		log.Println(b.String())
